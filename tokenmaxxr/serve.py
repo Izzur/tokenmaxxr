@@ -15,12 +15,13 @@ except ImportError as e:  # pragma: no cover
         "serve requires the [serve] extra: pip install 'tokenmaxxr[serve]'"
     ) from e
 
+from tokenmaxxr import __version__
 from tokenmaxxr import fetch_all
 from tokenmaxxr.history import read_all
 
 
 def _build_app() -> "FastAPI":
-    app = FastAPI(title="tokenmaxxr", version="0.1.0")
+    app = FastAPI(title="tokenmaxxr", version=__version__)
 
     @app.get("/api/usage")
     def usage(provider: list[str] | None = Query(default=None)) -> dict:

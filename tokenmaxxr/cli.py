@@ -7,6 +7,7 @@ import json
 import sys
 from typing import Sequence
 
+from tokenmaxxr import __version__
 from tokenmaxxr import cookies as _cookies
 from tokenmaxxr import fetch_all
 from tokenmaxxr.cookies import discover_sources
@@ -46,6 +47,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="tokenmaxxr",
         description="Aggregate AI subscription quota usage.",
+    )
+    p.add_argument(
+        "--version", action="version", version=f"tokenmaxxr {__version__}"
     )
     p.add_argument(
         "--json", action="store_true", help="emit one JSON document on stdout"

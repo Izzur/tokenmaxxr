@@ -14,6 +14,7 @@ import requests
 
 from tokenmaxxr.schema import UsageWindow
 
+from tokenmaxxr import __version__
 
 @dataclass
 class RawHtml:
@@ -56,7 +57,7 @@ def known_slugs() -> list[str]:
     return sorted(_REGISTRY)
 
 
-def make_session(cookies: CookieJar, user_agent: str = "tokenmaxxr/0.1") -> requests.Session:
+def make_session(cookies: CookieJar, user_agent: str = f"tokenmaxxr/{__version__}") -> requests.Session:
     """Build a requests.Session that injects the resolved cookies."""
     sess = requests.Session()
     sess.cookies = cookies

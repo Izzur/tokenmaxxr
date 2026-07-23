@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>tokenmaxxr</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>tokenmaxxr</h1>
+      <div class="controls">
+        <label><input type="checkbox" id="auto" /> auto-refresh</label>
+        <button id="refresh">refresh now</button>
+      </div>
+    </header>
+    <main id="cards"></main>
+    <section id="history" hidden>
+      <h2>history</h2>
+      <select id="provider">
+        <option value="">all providers</option>
+      </select>
+      <select id="window">
+        <option value="">all windows</option>
+        <option>5h</option>
+        <option>7d</option>
+        <option>30d</option>
+      </select>
+      <canvas id="chart" width="600" height="160"></canvas>
+    </section>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

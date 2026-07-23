@@ -99,7 +99,19 @@ Cookies are copied to a temp file before reading (WAL lock-safe). Cache and hist
 tokenmaxxr --cookie-file ollama-cloud=/srv/cookies/ollama.sqlite --json
 # or
 TOKENMAXXR_COOKIE_OLLAMA_COM=/srv/cookies/ollama.sqlite tokenmaxxr --json
+
+## Development
+
+```bash
+uv sync --extra dev           # set up dev deps (pytest, fastapi, etc.)
+uv run python3 -m pytest      # 32 tests, <1s
+uv run python3 -m pytest tests/test_providers.py -v   # one file
 ```
+
+Provider parser tests live in `tests/test_providers.py` against HTML/JSON
+fixtures under `tests/fixtures/`. To add a fixture, drop a real captured
+payload into `tests/fixtures/<slug>.<ext>` and write a `test_<slug>` that
+feeds it through `RawHtml` and asserts on the parsed `UsageWindow`s.
 
 ## License
 

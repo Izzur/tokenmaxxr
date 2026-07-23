@@ -1,22 +1,51 @@
 """ClinePass provider.
 
-URL: https://app.cline.bot/dashboard/subscription?personal=true
-Anchors on progressbar elements with aria-label ending " usage".
+Cline's dashboard (app.cline.bot) is a Next.js SPA shell — server-rendered
+HTML has no usage cards; data is fetched client-side from api.cline.bot.
+The auth cookie (cline_session_id) is host-locked to api.cline.bot, so
+resolving cookies for app.cline.bot alone misses the auth and every API
+call returns 401.
+
+Strategy: resolve cookies for BOTH app.cline.bot and api.cline.bot and
+merge. Then hit the JSON API directly — it's the only source of truth.
 """
 
 from __future__ import annotations
 
 from http.cookiejar import CookieJar
 
-from bs4 import BeautifulSoup, Tag
-
-from tokenmaxxr.providers.base import Provider, RawHtml, register
-from tokenmaxxr.reset import parse_relative_to_utc
+from tokenmaxxr.cookies import resolve as resolve_cookies
+from tokenmaxxr.providers.base import RawHtml, make_session, register
+from tokenmaxxr.reset import parse_iso_utc
 from tokenmaxxr.schema import UsageWindow
 
 DASHBOARD_URL = (
     "https://app.cline.bot/dashboard/subscription?personal=true"
 )
+# The actual source of truth for quota.
+_USAGE_LIMITS_URL = "https://api.cline.bot/api/v1/users/me/plan/usage-limits"
+_AUTH_PROBE_URL = "https://api.cline.bot/api/v1/users/me"
+
+# Map the API's "type" field to canonical labels used everywhere else.
+_TYPE_TO_LABEL = {
+    "five_hour": "5h",
+    "weekly": "7d",
+    "monthly": "30d",
+}
+
+
+def _merge_cookies(*jars: CookieJar | None) -> CookieJar:
+    """Return a new jar containing every cookie from each input."""
+    out = CookieJar()
+    for jar in jars:
+        if not jar:
+            continue
+        for c in jar:
+            # Last write wins on duplicate (name, domain, path) — the
+            # API-domain cookie overwrites the app-domain one if they
+            # share a name, which is what we want for cline_session_id.
+            out.set_cookie(c)
+    return out
 
 
 class ClinePassProvider:
@@ -25,88 +54,66 @@ class ClinePassProvider:
     cookie_domain = "app.cline.bot"
 
     def fetch_raw(self, cookies: CookieJar) -> RawHtml:
-        from tokenmaxxr.providers.base import make_session
-
-        sess = make_session(cookies)
-        r = sess.get(DASHBOARD_URL, timeout=20)
-        r.raise_for_status()
-        return RawHtml(url=r.url, text=r.text)
+        # cookies argument is the app.cline.bot jar. Augment with the
+        # api.cline.bot jar so cline_session_id is included.
+        api_jar, _ = resolve_cookies("api.cline.bot")
+        merged = _merge_cookies(cookies, api_jar)
+        sess = make_session(merged)
+        # Auth probe first: if cline_session_id is invalid, the dashboard
+        # page comes back empty AND the API returns 401. We only need the
+        # API response either way, so use it for the auth signal too.
+        try:
+            probe = sess.get(_AUTH_PROBE_URL, timeout=10)
+        except Exception:
+            probe = None
+        auth_status = probe.status_code if probe is not None else None
+        try:
+            limits = sess.get(_USAGE_LIMITS_URL, timeout=10)
+        except Exception:
+            limits = None
+        usage_status = limits.status_code if limits is not None else None
+        usage_text = limits.text if limits is not None else None
+        return RawHtml(
+            url=_USAGE_LIMITS_URL,
+            text=usage_text or "",
+            auth_status=auth_status,
+            usage_status=usage_status,
+        )
 
     def to_rows(self, raw: RawHtml) -> list[UsageWindow]:
-        soup = BeautifulSoup(raw.text, "html.parser")
-        # Each usage card is a <div> that contains both an <h3> title
-        # ("5-Hour Limit" / "Weekly Limit" / "Monthly Limit") and a
-        # role="progressbar". Anchor on the semantic structure — both
-        # elements must be present — so this stays correct even if
-        # Tailwind class names drift.
-        cards = soup.find_all(
-            lambda tag: (
-                getattr(tag, "name", None) == "div"
-                and tag.find("h3") is not None
-                and tag.find(attrs={"role": "progressbar"}) is not None
+        if raw.auth_status == 401 or raw.usage_status == 401:
+            raise RuntimeError(
+                "session expired — open https://app.cline.bot/dashboard/subscription "
+                "in your browser to refresh, then retry"
             )
-        )
+        if raw.usage_status is None or raw.usage_status >= 400:
+            raise RuntimeError(
+                f"clinepass API returned {raw.usage_status}: {raw.text[:200]}"
+            )
+        import json
+
+        try:
+            data = json.loads(raw.text)
+        except (TypeError, ValueError) as e:
+            raise RuntimeError(f"clinepass API returned non-JSON: {e}") from e
+        limits = (data.get("data") or {}).get("limits") or []
         windows: list[UsageWindow] = []
-        for card in cards:
-            bar = card.find(
-                attrs={"role": "progressbar", "aria-label": True}
-            )
-            if bar is None:
+        for entry in limits:
+            t = entry.get("type")
+            label = _TYPE_TO_LABEL.get(t or "")
+            if not label:
                 continue
-            label = (bar.get("aria-label") or "").strip()
-            if not label.endswith(" usage"):
-                continue
-            now = bar.get("aria-valuenow")
             try:
-                pct = int(float(now))
+                pct = int(round(float(entry.get("percentUsed", 0))))
             except (TypeError, ValueError):
                 continue
             pct = max(0, min(100, pct))
-            reset = _card_reset_text(card)
-            windows.append(
-                UsageWindow(
-                    label=_label_for(label),
-                    pct_used=pct,
-                    reset_at=parse_relative_to_utc(reset) if reset else None,
-                )
-            )
+            reset = entry.get("resetsAt")
+            reset_at = parse_iso_utc(reset) if reset else None
+            windows.append(UsageWindow(label=label, pct_used=pct, reset_at=reset_at))
         if not windows:
-            raise RuntimeError("no progressbar usage elements on clinepass dashboard")
+            raise RuntimeError("clinepass API returned no usage limits")
         return windows
-
-
-def _card_reset_text(card: Tag) -> str | None:
-    """Return the "Resets in …" text inside a single card, or None.
-
-    The dump structure puts the "Resets in …" text inside a <p> sibling of the
-    progressbar's <div> parent. Search the card subtree for any <p> that starts
-    with "Resets in" — this scopes to the current card without bleeding into
-    sibling cards.
-    """
-    for p in card.find_all("p"):
-        txt = p.get_text(" ", strip=True)
-        if txt.lower().startswith("resets in"):
-            return txt
-    for div in card.find_all("div"):
-        txt = div.get_text(" ", strip=True)
-        if (
-            txt.lower().startswith("resets in")
-            and len(txt) < 80
-            and div.find("p") is None
-        ):
-            return txt
-    return None
-
-
-def _label_for(label: str) -> str:
-    t = label.lower()
-    if "5-hour" in t or "5 hour" in t or "5h" in t:
-        return "5h"
-    if "weekly" in t or "week" in t:
-        return "7d"
-    if "monthly" in t or "month" in t:
-        return "30d"
-    return label or "?"
 
 
 register(ClinePassProvider.slug, ClinePassProvider)

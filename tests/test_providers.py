@@ -1,7 +1,6 @@
 """Per-provider parser tests against HTML fixtures."""
-
 import importlib
-
+import json
 import pytest
 
 from tokenmaxxr.providers import get_provider
@@ -34,11 +33,30 @@ def test_opencode_go():
 
 
 def test_clinepass_real_dump():
-    raw = RawHtml(url="https://app.cline.bot/dashboard/subscription", text=(FIX / "clinepass.html").read_text())
+    # Clinepass now reads from the JSON API instead of HTML. Feed it the
+    # exact shape /api/v1/users/me/plan/usage-limits returns.
+    raw = RawHtml(
+        url="https://api.cline.bot/api/v1/users/me/plan/usage-limits",
+        text=json.dumps({
+            "data": {
+                "limits": [
+                    {"type": "five_hour", "percentUsed": 0, "resetsAt": "2026-07-22T21:00:00Z"},
+                    {"type": "weekly", "percentUsed": 84, "resetsAt": "2026-07-23T07:43:10Z"},
+                    {"type": "monthly", "percentUsed": 42, "resetsAt": "2026-08-15T07:43:10Z"},
+                ]
+            },
+            "success": True,
+        }),
+        auth_status=200,
+        usage_status=200,
+    )
     p = get_provider("clinepass")
     rows = p.to_rows(raw)
     by_label = {w.label: w for w in rows}
     assert set(by_label) == {"5h", "7d", "30d"}
+    assert by_label["5h"].pct_used == 0
+    assert by_label["7d"].pct_used == 84
+    assert by_label["30d"].pct_used == 42
     for w in rows:
         assert 0 <= w.pct_used <= 100
         assert w.reset_at is None or w.reset_at.endswith("Z")

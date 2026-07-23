@@ -19,8 +19,13 @@ from tokenmaxxr.schema import UsageWindow
 
 DASHBOARD_URL = "https://ollama.com/settings"
 
-# An aria-label like "Session usage 47%" → label "Session", pct 47.
-_LABEL_RE = re.compile(r"^(Session|Weekly|Daily|Monthly)\s+usage\s+(\d+)\s*%\s*$", re.IGNORECASE)
+# An aria-label like "Session usage 47% used" → label "Session", pct 47.
+# Ollama's settings page renders decimals ("31.7% used") and an optional
+# " used" suffix, so we accept both.
+_LABEL_RE = re.compile(
+    r"^(Session|Weekly|Daily|Monthly)\s+usage\s+(\d+(?:\.\d+)?)\s*%\s*(?:used)?\s*$",
+    re.IGNORECASE,
+)
 
 
 class OllamaCloudProvider:
@@ -46,7 +51,7 @@ class OllamaCloudProvider:
                 continue
             kind, pct_str = m.group(1), m.group(2)
             try:
-                pct = max(0, min(100, int(pct_str)))
+                pct = max(0, min(100, int(round(float(pct_str)))))
             except ValueError:
                 continue
             reset_at = _sibling_reset_iso(el)

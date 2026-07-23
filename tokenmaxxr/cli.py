@@ -103,9 +103,15 @@ def _print_table(doc: dict) -> None:
             label = "(no windows)"
         reset = ""
         if windows:
-            first = windows[0].get("reset_at")
-            if first:
-                reset = first
+            # Pick the first window that actually has a reset time. The
+            # "primary" window may legitimately be None (e.g. 5h on
+            # ClinePass has no resetsAt), so fall through to the next
+            # window instead of always taking the first.
+            for w in windows:
+                ts = w.get("reset_at")
+                if ts:
+                    reset = ts
+                    break
         rows.append((name, status, label, reset, prov.get("error") or ""))
     widths = [max(len(str(r[i])) for r in rows + [("",)*5]) for i in range(5)]
     fmt = "  ".join(f"{{:<{w}}}" for w in widths)

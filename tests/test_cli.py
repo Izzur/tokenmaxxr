@@ -34,8 +34,10 @@ def stub_provider(monkeypatch, tmp_path):
         b._REGISTRY[slug] = lambda: _provider
         # Make sure cookies resolve returns None so the live path runs.
         from tokenmaxxr import cookies as ck
+        from tokenmaxxr import fetch as ft
         monkeypatch.setattr(ck, "resolve", lambda domain, **kw: (None, None))
-        return _provider
+        # fetch.py bound `resolve` at import time — patch the local alias too.
+        monkeypatch.setattr(ft, "resolve_cookies", lambda domain, **kw: (None, None))
 
     return _stub
 

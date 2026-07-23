@@ -20,6 +20,13 @@ class RawHtml:
     """Carries the fetched HTML + the URL it ended up at (after redirects)."""
     url: str
     text: str
+    # Optional auth probe result (e.g. 401 from the provider's API). Set by
+    # providers that want to surface a clearer error than "page is empty".
+    auth_status: int | None = None
+    # Optional second HTTP status (e.g. the data API call's status when the
+    # first call was an auth probe). Providers that hit multiple endpoints
+    # can stash both.
+    usage_status: int | None = None
 
 
 class Provider(Protocol):

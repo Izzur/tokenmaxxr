@@ -76,11 +76,20 @@ def _read_firefox_db(
     hosts: set[str] = set()
     tmp = _copy_db_to_temp(src)
     try:
-        # Firefox uses `host_key` (no leading dot = exact, dot prefix = domain match).
+        # Detect schema: new Firefox uses `host`/`isSecure`/`isHttpOnly`,
+        # old uses `host_key`/`is_secure`/`is_httponly`.
         with sqlite3.connect(tmp) as conn:
+            cols = {
+                r[1]
+                for r in conn.execute("PRAGMA table_info(moz_cookies)")
+            }
+            host_col = "host" if "host" in cols else "host_key"
+            secure_col = "isSecure" if "isSecure" in cols else "is_secure"
+            httponly_col = "isHttpOnly" if "isHttpOnly" in cols else "is_httponly"
             cur = conn.execute(
-                "SELECT name, value, host_key, path, "
-                "datetime(expiry, 'unixepoch'), is_secure, is_httponly "
+                f"SELECT name, value, {host_col}, path, "
+                "datetime(expiry, 'unixepoch'), "
+                f"{secure_col}, {httponly_col} "
                 "FROM moz_cookies"
             )
             for name, value, host_key, path, expires, secure, httponly in cur:
@@ -110,10 +119,8 @@ def _read_firefox_db(
                         comment=None, comment_url=None,
                         rest={}, rfc2109=False,
                         port=None, port_specified=False,
-                        # best-effort: only HTTPS hostnames get secure=1 in the DB
                     )
                 )
-                # Force-secure flag handled below per-https host
                 if host_key.startswith("https://"):
                     cookies[-1].secure = True
     finally:

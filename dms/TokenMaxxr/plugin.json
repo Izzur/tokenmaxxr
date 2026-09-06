@@ -1,0 +1,12 @@
+{
+    "id": "tokenMaxxr",
+    "name": "tokenmaxxr",
+    "description": "AI subscription quota (Claude, Kiro, ClinePass, Ollama Cloud, OpenCode Go) in the DankBar. Runs `tokenmaxxr --json`.",
+    "version": "1.1.0",
+    "license": "MIT",
+    "author": "Izzur",
+    "icon": "data_usage",
+    "type": "widget",
+    "component": "./TokenMaxxrWidget.qml",
+    "permissions": ["settings_read"]
+}

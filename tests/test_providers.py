@@ -105,3 +105,40 @@ def test_opencode_workspace_discovery_final_segment_fallback():
             return _Resp("https://opencode.ai/anything/dashboard")
 
     assert opencode_go._discover_workspace(_Sess()) == "dashboard"
+
+
+def test_claude_usage_json():
+    raw = RawHtml(
+        url="https://api.anthropic.com/api/oauth/usage",
+        text=json.dumps({
+            "five_hour": {"utilization": 47.4, "resets_at": "2026-09-06T20:00:00.000000+00:00"},
+            "seven_day": {"utilization": 12, "resets_at": "2026-09-10T07:00:00Z"},
+            "seven_day_opus": {"utilization": 3, "resets_at": None},
+            "extra_usage": {"is_enabled": True, "utilization": 10.0, "used_credits": 5, "monthly_limit": 50},
+        }),
+        usage_status=200,
+    )
+    rows = get_provider("claude").to_rows(raw)
+    by = {w.label: w for w in rows}
+    assert set(by) == {"5h", "7d", "7d-opus", "extra"}
+    assert by["5h"].pct_used == 47 and by["5h"].reset_at == "2026-09-06T20:00:00Z"
+    assert by["7d-opus"].reset_at is None
+    assert by["extra"].pct_used == 10
+
+
+def test_claude_401_is_no_auth():
+    from tokenmaxxr.providers import NoAuth
+    with pytest.raises(NoAuth):
+        get_provider("claude").to_rows(RawHtml(url="", text="", usage_status=401))
+
+
+def test_claude_expired_token(tmp_path):
+    from tokenmaxxr.providers import NoAuth
+    from tokenmaxxr.providers.claude import load_access_token
+    p = tmp_path / ".credentials.json"
+    p.write_text(json.dumps({"claudeAiOauth": {"accessToken": "x", "expiresAt": 1}}))
+    with pytest.raises(NoAuth, match="expired"):
+        load_access_token(p)
+    p.write_text(json.dumps({"claudeAiOauth": {"accessToken": "x", "expiresAt": 4102444800000}}))
+    assert load_access_token(p) == "x"
+

@@ -1,6 +1,7 @@
 """Provider plugins: fetch + parse usage from a dashboard into UsageWindows."""
 
 from tokenmaxxr.providers.base import (
+    NoAuth,
     Provider,
     RawHtml,
     get_provider,
@@ -8,7 +9,7 @@ from tokenmaxxr.providers.base import (
     register,
 )
 
-__all__ = ["Provider", "RawHtml", "register", "get_provider", "known_slugs"]
+__all__ = ["NoAuth", "Provider", "RawHtml", "register", "get_provider", "known_slugs"]
 
 
 def _import_all() -> None:
@@ -16,6 +17,7 @@ def _import_all() -> None:
     from tokenmaxxr.providers import opencode_go  # noqa: F401
     from tokenmaxxr.providers import clinepass  # noqa: F401
     from tokenmaxxr.providers import ollama_cloud  # noqa: F401
+    from tokenmaxxr.providers import claude  # noqa: F401
 
 
 _import_all()

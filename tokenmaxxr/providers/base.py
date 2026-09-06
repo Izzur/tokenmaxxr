@@ -30,13 +30,22 @@ class RawHtml:
     usage_status: int | None = None
 
 
+class NoAuth(RuntimeError):
+    """Raised by a provider when its local credential is missing or expired.
+
+    fetch_all maps it to status "no-auth" (never "error"/"stale").
+    """
+
+
 class Provider(Protocol):
     slug: str
     name: str
     # Domain this provider's cookies belong to (used by the resolver chain).
-    cookie_domain: str
+    # None for token-based providers (Claude, Kiro) that read a local
+    # credential file instead; they receive cookies=None.
+    cookie_domain: str | None
 
-    def fetch_raw(self, cookies: CookieJar) -> RawHtml: ...
+    def fetch_raw(self, cookies: CookieJar | None) -> RawHtml: ...
     def to_rows(self, raw: RawHtml) -> list[UsageWindow]: ...
 
 

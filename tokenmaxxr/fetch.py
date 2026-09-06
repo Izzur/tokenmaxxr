@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 from tokenmaxxr import cache, history
 from tokenmaxxr.cookies import resolve as resolve_cookies
-from tokenmaxxr.providers import get_provider, known_slugs
+from tokenmaxxr.providers import NoAuth, get_provider, known_slugs
 from tokenmaxxr.schema import ProviderResult, build_document
 
 log = logging.getLogger(__name__)
@@ -48,20 +48,24 @@ def _collect_one(
         # `history.jsonl` — history is append-only and reflects every
         # successful LIVE fetch, regardless of how it was triggered.
         cache.invalidate(slug)
-    # Cookie resolution.
-    jar, _source = resolve_cookies(provider.cookie_domain, override=override)
-    if jar is None:
-        return ProviderResult(
-            id=slug,
-            name=provider.name,
-            status="no-auth",
-            error=f"no cookies for {provider.cookie_domain}",
-        )
+    # Cookie resolution (skipped for token-based providers).
+    jar = None
+    if provider.cookie_domain:
+        jar, _source = resolve_cookies(provider.cookie_domain, override=override)
+        if jar is None:
+            return ProviderResult(
+                id=slug,
+                name=provider.name,
+                status="no-auth",
+                error=f"no cookies for {provider.cookie_domain}",
+            )
 
     # Live fetch.
     try:
         raw = provider.fetch_raw(jar)
         windows = provider.to_rows(raw)
+    except NoAuth as e:
+        return ProviderResult(id=slug, name=provider.name, status="no-auth", error=str(e))
     except Exception as e:  # noqa: BLE001 — boundary, isolate per-provider
         log.warning("provider %s failed: %s", slug, e)
         stale = cache.read_any_age(slug)

@@ -130,6 +130,11 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     lines: list[str] = []
     for slug in known_slugs():
         prov = get_provider(slug)
+        if not prov.cookie_domain:
+            lines.append(f"# {prov.name} ({slug}) — token file")
+            lines.append(f"  {prov.auth_hint()}")
+            lines.append("")
+            continue
         sources = _cookies.discover_sources(prov.cookie_domain)
         lines.append(f"# {prov.name} ({slug}) — domain: {prov.cookie_domain}")
         if not sources:

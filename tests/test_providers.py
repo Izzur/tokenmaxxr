@@ -142,3 +142,86 @@ def test_claude_expired_token(tmp_path):
     p.write_text(json.dumps({"claudeAiOauth": {"accessToken": "x", "expiresAt": 4102444800000}}))
     assert load_access_token(p) == "x"
 
+
+def test_kiro_usage_json():
+    raw = RawHtml(
+        url="https://codewhisperer.us-east-1.amazonaws.com/",
+        text=json.dumps({
+            "nextDateReset": 1759276800.0,
+            "subscriptionInfo": {"subscriptionTitle": "KIRO PRO"},
+            "usageBreakdownList": [{
+                "resourceType": "CREDIT",
+                "currentUsageWithPrecision": 40.5,
+                "usageLimitWithPrecision": 100.0,
+                "freeTrialInfo": {"freeTrialStatus": "ACTIVE", "currentUsage": 10, "usageLimit": 50, "freeTrialExpiry": 1759000000},
+            }],
+        }),
+        usage_status=200,
+    )
+    rows = get_provider("kiro").to_rows(raw)
+    by = {w.label: w for w in rows}
+    assert set(by) == {"30d", "trial"}
+    assert by["30d"].pct_used == 40 and by["30d"].reset_at == "2025-10-01T00:00:00Z"
+    assert by["trial"].pct_used == 20 and by["trial"].reset_at == "2025-09-27T19:06:40Z"
+
+
+def test_kiro_sqlite_credential(tmp_path):
+    import sqlite3
+    from tokenmaxxr.providers import NoAuth
+    from tokenmaxxr.providers.kiro import load_credential
+    db = tmp_path / "data.sqlite3"
+    conn = sqlite3.connect(db)
+    conn.execute("create table auth_kv (key text, value text)")
+    conn.execute("create table state (key text, value text)")
+    conn.execute("insert into auth_kv values (?, ?)", ("kirocli:odic:token", json.dumps({
+        "access_token": "AT", "refresh_token": "RT", "expires_at": "2099-01-01T00:00:00Z", "region": "us-east-1"})))
+    conn.execute("insert into state values (?, ?)", ("api.codewhisperer.profile", json.dumps({
+        "arn": "arn:aws:codewhisperer:eu-west-1:123:profile/x"})))
+    conn.commit(); conn.close()
+    cred = load_credential(db, tmp_path / "absent.json")
+    assert cred["token"] == "AT"
+    assert cred["region"] == "eu-west-1"  # ARN region wins over token region
+    with pytest.raises(NoAuth):
+        load_credential(tmp_path / "nope.sqlite3", tmp_path / "absent.json")
+
+
+def test_kiro_expired_token_triggers_cli_refresh(tmp_path, monkeypatch):
+    import sqlite3
+    from tokenmaxxr.providers import kiro
+    db = tmp_path / "data.sqlite3"
+    conn = sqlite3.connect(db)
+    conn.execute("create table auth_kv (key text, value text)")
+    conn.execute("create table state (key text, value text)")
+    conn.execute("insert into auth_kv values (?, ?)", ("kirocli:odic:token", json.dumps({
+        "access_token": "OLD", "expires_at": "2000-01-01T00:00:00Z", "region": "us-east-1"})))
+    conn.commit(); conn.close()
+
+    def fake_refresh():
+        c = sqlite3.connect(db)
+        c.execute("update auth_kv set value = ? where key = ?", (json.dumps({
+            "access_token": "NEW", "expires_at": "2099-01-01T00:00:00Z", "region": "us-east-1"}), "kirocli:odic:token"))
+        c.commit(); c.close()
+
+    monkeypatch.setattr(kiro, "_refresh_via_cli", fake_refresh)
+    assert kiro.load_credential(db, tmp_path / "absent.json")["token"] == "NEW"
+
+    # Refresh that changes nothing → NoAuth, not a crash loop.
+    monkeypatch.setattr(kiro, "_refresh_via_cli", lambda: None)
+    c = sqlite3.connect(db)
+    c.execute("update auth_kv set value = ? where key = ?", (json.dumps({
+        "access_token": "OLD", "expires_at": "2000-01-01T00:00:00Z", "region": "us-east-1"}), "kirocli:odic:token"))
+    c.commit(); c.close()
+    with pytest.raises(kiro.NoAuth, match="expired"):
+        kiro.load_credential(db, tmp_path / "absent.json")
+
+
+def test_fetch_all_maps_no_auth(monkeypatch, tmp_path):
+    """Token providers with no credential file report no-auth, not error."""
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setattr("tokenmaxxr.providers.kiro.ide_token_path", lambda: tmp_path / "none.json")
+    from tokenmaxxr import fetch_all
+    doc = fetch_all(providers=["claude", "kiro"], refresh=True)
+    assert [p["status"] for p in doc["providers"]] == ["no-auth", "no-auth"]
+

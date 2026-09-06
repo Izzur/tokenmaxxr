@@ -225,3 +225,18 @@ def test_fetch_all_maps_no_auth(monkeypatch, tmp_path):
     doc = fetch_all(providers=["claude", "kiro"], refresh=True)
     assert [p["status"] for p in doc["providers"]] == ["no-auth", "no-auth"]
 
+
+def test_config_include_exclude(tmp_path, monkeypatch):
+    from tokenmaxxr import config
+    known = ["claude", "clinepass", "kiro", "ollama-cloud", "opencode-go"]
+    assert config.select_providers(known, {}) == known
+    assert config.select_providers(known, {"include": ["kiro", "claude"]}) == ["claude", "kiro"]
+    assert config.select_providers(known, {"exclude": ["opencode-go"]}) == known[:-1]
+    assert config.select_providers(known, {"include": ["kiro", "claude"], "exclude": ["kiro"]}) == ["claude"]
+    with pytest.raises(SystemExit):
+        config.select_providers(known, {"include": ["nope"]})
+    # File round-trip via XDG_CONFIG_HOME.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "tokenmaxxr").mkdir()
+    (tmp_path / "tokenmaxxr" / "config.toml").write_text('exclude = ["opencode-go", "clinepass"]\n')
+    assert config.select_providers(known) == ["claude", "kiro", "ollama-cloud"]

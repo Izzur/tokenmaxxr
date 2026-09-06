@@ -24,6 +24,7 @@ dependencies = [
     "requests>=2.31",
     "beautifulsoup4>=4.12",
     "browser-cookie3>=0.20",
+    "tomli>=2; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]

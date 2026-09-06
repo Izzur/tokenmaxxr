@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from tokenmaxxr import cache, history
+from tokenmaxxr import cache, config, history
 from tokenmaxxr.cookies import resolve as resolve_cookies
 from tokenmaxxr.providers import NoAuth, get_provider, known_slugs
 from tokenmaxxr.schema import ProviderResult, build_document
@@ -25,7 +25,7 @@ def fetch_all(
 ) -> dict:
     """Collect usage for each requested provider and return the schema:1 doc."""
     cookie_overrides = cookie_overrides or {}
-    slugs = providers or known_slugs()
+    slugs = providers or config.select_providers(known_slugs())
     results: list[ProviderResult] = []
     for slug in slugs:
         results.append(_collect_one(slug, refresh=refresh, override=cookie_overrides.get(slug)))

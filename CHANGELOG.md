@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## 1.1.0 — 2026-09-06
+
+### Added
+- Claude provider (`claude`): reads the Claude Code OAuth token from
+  `$CLAUDE_CONFIG_DIR/.credentials.json` and reports 5h / 7d / 7d-sonnet /
+  7d-opus / extra windows.
+- Kiro provider (`kiro`): reads the kiro-cli token from
+  `~/.local/share/kiro-cli/data.sqlite3` (or the Kiro IDE file under
+  `~/.aws/sso/cache/`) and reports monthly credit usage. An expired CLI
+  token triggers `kiro-cli whoami`, which refreshes it in place.
+- Token-based providers: `cookie_domain = None` skips cookie discovery;
+  new `NoAuth` exception maps to status `no-auth`. `doctor` shows the token
+  file path for them.
+- Config file `$XDG_CONFIG_HOME/tokenmaxxr/config.toml` with `include`
+  (whitelist) / `exclude` (blacklist) provider lists. `--provider` overrides.
+- DankMaterialShell bar plugin under `dms/TokenMaxxr/`. Pill shows the
+  soonest reset among each provider's longest window; popout shows all.
+
 ## 1.0.0 — 2026-07-23
 
 First stable release. Aggregates AI subscription quota usage from three

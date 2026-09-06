@@ -1,8 +1,8 @@
 # tokenmaxxr
 
-Aggregate AI subscription quota usage (OpenCode Go, ClinePass, Ollama Cloud) into one view.
+Aggregate AI subscription quota usage (Claude, AWS Kiro, ClinePass, Ollama Cloud, OpenCode Go) into one view.
 
-Three providers, one engine, one versioned JSON contract. CLI for bars/dashboards, optional WebUI, optional HTTP API.
+Five providers, one engine, one versioned JSON contract. CLI for bars/dashboards, a DankMaterialShell bar plugin, optional WebUI, optional HTTP API.
 
 ## Install
 
@@ -60,6 +60,34 @@ The dashboard degrades gracefully: with no cookies, every card shows `no-auth` a
 
 `status` is one of `ok` | `stale` | `no-auth` | `error`.
 
+## Config
+
+`$XDG_CONFIG_HOME/tokenmaxxr/config.toml` (default `~/.config/tokenmaxxr/config.toml`), optional:
+
+```toml
+include = ["claude", "kiro"]   # whitelist: only these providers
+exclude = ["opencode-go"]      # blacklist: everything except these
+```
+
+`include` is applied first, then `exclude`. `--provider` on the CLI overrides both.
+
+## Auth sources
+
+Two kinds of provider:
+
+| Provider | Slug | Auth |
+|---|---|---|
+| Claude | `claude` | Claude Code OAuth token, `$CLAUDE_CONFIG_DIR/.credentials.json` (default `~/.claude/`). Log in once with `claude`. |
+| AWS Kiro | `kiro` | kiro-cli token in `~/.local/share/kiro-cli/data.sqlite3`, else Kiro IDE `~/.aws/sso/cache/kiro-auth-token.json`. Log in with `kiro-cli login`. |
+| ClinePass | `clinepass` | browser cookies for `app.cline.bot` + `api.cline.bot` |
+| Ollama Cloud | `ollama-cloud` | browser cookies for `ollama.com` |
+| OpenCode Go | `opencode-go` | browser cookies for `opencode.ai` |
+
+Token providers never refresh tokens themselves (that could invalidate the
+CLI's own session). Kiro tokens expire hourly, so an expired one makes
+tokenmaxxr run `kiro-cli whoami`, which refreshes in place. An expired Claude
+token shows as `no-auth`; run `claude` once and the next poll succeeds.
+
 ## Cookie sources
 
 1. `--cookie-file SLUG=/path/to/cookies.sqlite` or `TOKENMAXXR_COOKIE_<DOMAIN>` env
@@ -68,6 +96,26 @@ The dashboard degrades gracefully: with no cookies, every card shows `no-auth` a
 4. No match → `no-auth` status + remediation in `doctor`
 
 Cookies are copied to a temp file before reading (WAL lock-safe). Cache and history live under `~/.local/state/tokenmaxxr/`.
+
+## DankMaterialShell (Dankbar)
+
+```bash
+uv tool install tokenmaxxr                       # puts `tokenmaxxr` on ~/.local/bin
+git clone https://github.com/Izzur/tokenmaxxr
+ln -s "$PWD/tokenmaxxr/dms/TokenMaxxr" ~/.config/DankMaterialShell/plugins/TokenMaxxr
+```
+
+Then DMS Settings → Plugins → enable **tokenmaxxr**, and add it to a bar
+section. Pill shows `C 3d 4h`: for each provider take its longest window
+(30d, 7d, …), then show the provider whose longest window resets soonest and
+the countdown to it. Left click opens a popout with every window, progress
+bar and reset countdown. Right click forces `--refresh`.
+
+Optional settings in `~/.config/DankMaterialShell/plugin_settings.json`:
+
+```json
+"tokenMaxxr": { "enabled": true, "command": "tokenmaxxr --json", "interval": 300 }
+```
 
 ## Waybar
 

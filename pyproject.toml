@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tokenmaxxr"
-version = "1.0.0"
-description = "Aggregate AI subscription quota usage (OpenCode Go, ClinePass, Ollama Cloud) into one view."
+version = "1.1.0"
+description = "Aggregate AI subscription quota usage (Claude, Kiro, ClinePass, Ollama Cloud, OpenCode Go) into one view."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Izzur", email = "13365626+Izzur@users.noreply.github.com" }]
-keywords = ["ai", "quota", "usage", "opencode", "cline", "ollama", "waybar", "fastfetch"]
+keywords = ["ai", "quota", "usage", "claude", "kiro", "opencode", "cline", "ollama", "waybar", "dankmaterialshell", "fastfetch"]
 maintainers = [{ name = "Izzur", email = "13365626+Izzur@users.noreply.github.com" }]
 classifiers = [
     "Environment :: Console",

@@ -25,7 +25,7 @@ PluginComponent {
     popoutWidth: 360
 
     readonly property var tags: ({
-        "claude": "C", "kiro": "K", "ollama-cloud": "O", "clinepass": "CP", "opencode-go": "OG"
+        "claude": "C", "kiro": "K", "ollama-cloud": "O", "clinepass": "CP", "opencode-go": "OG", "commandcode": "CC"
     })
 
     function tag(p) { return tags[p.id] || p.id.slice(0, 2).toUpperCase(); }

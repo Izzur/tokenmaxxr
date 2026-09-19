@@ -1,8 +1,8 @@
 # tokenmaxxr
 
-Aggregate AI subscription quota usage (Claude, AWS Kiro, ClinePass, Ollama Cloud, OpenCode Go) into one view.
+Aggregate AI subscription quota usage (Claude, AWS Kiro, ClinePass, Command Code, Ollama Cloud, OpenCode Go) into one view.
 
-Five providers, one engine, one versioned JSON contract. CLI for bars/dashboards, a DankMaterialShell bar plugin, optional WebUI, optional HTTP API.
+Six providers, one engine, one versioned JSON contract. CLI for bars/dashboards, a DankMaterialShell bar plugin, optional WebUI, optional HTTP API.
 
 ## Install
 
@@ -80,6 +80,7 @@ Two kinds of provider:
 | Claude | `claude` | Claude Code OAuth token, `$CLAUDE_CONFIG_DIR/.credentials.json` (default `~/.claude/`). Log in once with `claude`. |
 | AWS Kiro | `kiro` | kiro-cli token in `~/.local/share/kiro-cli/data.sqlite3`, else Kiro IDE `~/.aws/sso/cache/kiro-auth-token.json`. Log in with `kiro-cli login`. |
 | ClinePass | `clinepass` | browser cookies for `app.cline.bot` + `api.cline.bot` |
+| Command Code | `commandcode` | browser cookies for `commandcode.ai` (session cookie, sent to `api.commandcode.ai`) |
 | Ollama Cloud | `ollama-cloud` | browser cookies for `ollama.com` |
 | OpenCode Go | `opencode-go` | browser cookies for `opencode.ai` |
 

@@ -240,3 +240,33 @@ def test_config_include_exclude(tmp_path, monkeypatch):
     (tmp_path / "tokenmaxxr").mkdir()
     (tmp_path / "tokenmaxxr" / "config.toml").write_text('exclude = ["opencode-go", "clinepass"]\n')
     assert config.select_providers(known) == ["claude", "kiro", "ollama-cloud"]
+
+
+def test_commandcode_usage_json():
+    raw = RawHtml(
+        url="https://api.commandcode.ai/internal/billing/credits",
+        text=json.dumps({
+            "credits": {
+                "credits": {"monthlyCredits": 52.5, "monthlyCreditsGranted": 70},
+                "windowLimits": {
+                    "limited": True,
+                    "fiveHour": {"used": 7.0, "cap": 14, "resetAt": 1789804400302},
+                    "weekly": {"used": 3.5, "cap": 35, "resetAt": 1790301251728},
+                },
+            },
+            "subscription": {"currentPeriodEnd": "2026-10-18T01:18:27.000Z"},
+        }),
+        usage_status=200,
+    )
+    by = {w.label: w for w in get_provider("commandcode").to_rows(raw)}
+    assert set(by) == {"5h", "7d", "30d"}
+    assert by["5h"].pct_used == 50 and by["5h"].reset_at == "2026-09-19T07:53:20Z"
+    assert by["7d"].pct_used == 10
+    assert by["30d"].pct_used == 25 and by["30d"].reset_at == "2026-10-18T01:18:27Z"
+
+
+def test_commandcode_401_is_no_auth():
+    from tokenmaxxr.providers.base import NoAuth
+    raw = RawHtml(url="x", text="", usage_status=401)
+    with pytest.raises(NoAuth):
+        get_provider("commandcode").to_rows(raw)

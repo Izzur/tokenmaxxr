@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+- Command Code provider (`commandcode`): uses the `commandcode.ai` browser
+  session cookie against `api.commandcode.ai` and reports 5h / 7d spend
+  windows plus the 30d monthly credit grant (reset = billing period end).
+  DMS pill tag `CC`.
+
 ## 1.1.0 — 2026-09-06
 
 ### Added

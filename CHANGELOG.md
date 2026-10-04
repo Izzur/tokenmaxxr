@@ -11,6 +11,12 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   session cookie against `api.commandcode.ai` and reports 5h / 7d spend
   windows plus the 30d monthly credit grant (reset = billing period end).
   DMS pill tag `CC`.
+- Ollama Cloud: support the usage-based Pro plan ("Monthly usage $X of $Y
+  used"), reported as a 30d window. Legacy 5h / 7d plans still work.
+
+### Fixed
+- Cookie lookup only probes Chromium-family browsers that have a cookie DB
+  on disk, so a locked KDE Wallet no longer pops a "misbehaving app" alert.
 
 ## 1.1.0 — 2026-09-06
 

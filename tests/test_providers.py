@@ -72,6 +72,18 @@ def test_ollama_cloud():
     assert by_label["5h"].reset_at == "2026-07-22T20:00:00Z"
 
 
+def test_ollama_cloud_monthly_budget():
+    """Usage-based Pro plan: one $ budget instead of 5h/7d percentages."""
+    raw = RawHtml(
+        url="https://ollama.com/settings",
+        text=(FIX / "ollama_cloud_monthly.html").read_text(),
+    )
+    rows = get_provider("ollama-cloud").to_rows(raw)
+    assert [(w.label, w.pct_used, w.reset_at) for w in rows] == [
+        ("30d", 46, "2026-10-18T04:46:29Z")
+    ]
+
+
 def test_opencode_workspace_discovery():
     """Picks the wrk_-prefixed segment out of the /auth redirect chain."""
     from tokenmaxxr.providers import opencode_go

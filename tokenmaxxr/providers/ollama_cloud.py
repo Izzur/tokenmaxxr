@@ -1,7 +1,9 @@
 """Ollama Cloud provider.
 
 URL: https://ollama.com/settings
-Anchors on aria-label starting with "Session usage " or "Weekly usage ".
+Anchors on aria-label "<Kind> usage N% used". Pro has two modes:
+legacy plans show "Session usage" (5h) + "Weekly usage" (7d) percentages;
+new plans show one dollar budget, "Monthly usage $X of $Y used" (30d).
 Reset read from sibling element's data-time (ISO 8601).
 """
 
@@ -26,6 +28,11 @@ _LABEL_RE = re.compile(
     r"^(Session|Weekly|Daily|Monthly)\s+usage\s+(\d+(?:\.\d+)?)\s*%\s*(?:used)?\s*$",
     re.IGNORECASE,
 )
+# New usage-based Pro plan: "Monthly usage $0.01 of $60 used".
+_DOLLAR_RE = re.compile(
+    r"^(Session|Weekly|Daily|Monthly)\s+usage\s+\$([\d,.]+)\s+of\s+\$([\d,.]+)\s*(?:used)?\s*$",
+    re.IGNORECASE,
+)
 
 
 class OllamaCloudProvider:
@@ -46,14 +53,10 @@ class OllamaCloudProvider:
         windows: list[UsageWindow] = []
         for el in soup.find_all(attrs={"aria-label": True}):
             label_attr = el.get("aria-label", "")
-            m = _LABEL_RE.match(label_attr.strip())
-            if not m:
+            pct = _pct(label_attr.strip())
+            if pct is None:
                 continue
-            kind, pct_str = m.group(1), m.group(2)
-            try:
-                pct = max(0, min(100, int(round(float(pct_str)))))
-            except ValueError:
-                continue
+            kind = label_attr.split(None, 1)[0]
             reset_at = _sibling_reset_iso(el)
             windows.append(
                 UsageWindow(
@@ -68,6 +71,20 @@ class OllamaCloudProvider:
         if not windows:
             raise RuntimeError("no usage aria-labels found on ollama settings")
         return windows
+
+
+def _pct(label: str) -> int | None:
+    try:
+        if m := _LABEL_RE.match(label):
+            pct = float(m.group(2))
+        elif m := _DOLLAR_RE.match(label):
+            used, cap = (float(g.replace(",", "")) for g in m.group(2, 3))
+            pct = used / cap * 100
+        else:
+            return None
+    except (ValueError, ZeroDivisionError):
+        return None
+    return max(0, min(100, int(round(pct))))
 
 
 def _sibling_reset_iso(el) -> str | None:

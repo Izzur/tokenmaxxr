@@ -22,7 +22,7 @@ AUTH_URL = "https://opencode.ai/auth"
 def _discover_workspace(sess) -> str:
     """Hit /auth and follow the redirect to find a wrk_-prefixed workspace."""
     r = sess.get(AUTH_URL, allow_redirects=True, timeout=15)
-    for url in [r.url, *r.history]:
+    for url in [r.url, *(h.url for h in r.history)]:
         path = urlparse(url).path
         for seg in path.split("/"):
             if seg.startswith("wrk_"):

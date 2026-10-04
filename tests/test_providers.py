@@ -96,8 +96,11 @@ def test_opencode_workspace_discovery():
     class _Sess:
         def get(self, url, allow_redirects=True, timeout=15):
             return _Resp(
-                url="https://opencode.ai/workspace/wrk_abc123/go",
-                history=(_Resp("https://opencode.ai/auth"),),
+                url="https://opencode.ai/go",
+                history=(
+                    _Resp("https://opencode.ai/auth"),
+                    _Resp("https://opencode.ai/workspace/wrk_abc123"),
+                ),
             )
 
     assert opencode_go._discover_workspace(_Sess()) == "wrk_abc123"

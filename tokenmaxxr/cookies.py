@@ -36,6 +36,38 @@ FIREFOX_GLOBS: tuple[str, ...] = (
     "~/.var/app/io.github.nickvision.nickvisionapp/.waterfox/*/cookies.sqlite",
 )
 
+# Chromium-family cookie DBs, mirroring browser_cookie3's Linux paths. Only
+# browsers with a DB on disk get probed: browser_cookie3 asks the OS keyring
+# for the decryption key *before* checking the cookie file exists, and when
+# KDE Wallet is locked it then calls hasFolder/close with handle -1, which
+# ksecretd counts as failures and surfaces as a "misbehaving app" popup.
+CHROMIUM_GLOBS: dict[str, tuple[str, ...]] = {
+    "chrome": (
+        "~/.config/google-chrome*/*/Cookies",
+        "~/.var/app/com.google.Chrome/config/google-chrome*/*/Cookies",
+    ),
+    "chromium": (
+        "~/.config/chromium/*/Cookies",
+        "~/.var/app/org.chromium.Chromium/config/chromium/*/Cookies",
+    ),
+    "edge": (
+        "~/.config/microsoft-edge*/*/Cookies",
+        "~/.var/app/com.microsoft.Edge/config/microsoft-edge*/*/Cookies",
+    ),
+    "brave": (
+        "~/.config/BraveSoftware/Brave-Browser*/*/Cookies",
+        "~/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser*/*/Cookies",
+    ),
+    "opera": (
+        "~/.config/opera*/Cookies",
+        "~/.var/app/com.opera.Opera/config/opera*/Cookies",
+    ),
+    "vivaldi": (
+        "~/.config/vivaldi*/*/Cookies",
+        "~/.var/app/com.vivaldi.Vivaldi/config/vivaldi/*/Cookies",
+    ),
+}
+
 
 @dataclass(frozen=True)
 class CookieSource:
@@ -192,36 +224,31 @@ def resolve(
                 "firefox", str(path), tuple(hosts)
             )
 
-    # 4. Chromium-family via browser_cookie3 (best-effort).
-    try:
-        import browser_cookie3  # type: ignore
-
-        jar_funcs: list[tuple[str, CookieJar]] = [
-            ("chrome", lambda: browser_cookie3.chrome(domain_name=domain)),
-            ("chromium", lambda: browser_cookie3.chromium(domain_name=domain)),
-            ("edge", lambda: browser_cookie3.edge(domain_name=domain)),
-            ("brave", lambda: browser_cookie3.brave(domain_name=domain)),
-            ("opera", lambda: browser_cookie3.opera(domain_name=domain)),
-            ("vivaldi", lambda: browser_cookie3.vivaldi(domain_name=domain)),
-        ]
-        for kind, mk in jar_funcs:
-            try:
-                jar = mk()
-            except Exception:  # noqa: BLE001 — locked keyring, missing keyring, etc.
-                continue
-            if any(_cookie_matches_domain(c, domain) for c in jar):
-                # Reduce jar to the requested domain so requests only sends
-                # cookies for the target host.
-                pruned = _prune_jar(jar, domain)
-                return pruned, CookieSource(
-                    "chromium", kind, (domain,)
-                )
-    except ImportError:
-        pass
-    except Exception as e:  # noqa: BLE001
-        log.debug("chromium discovery failed: %s", e)
+    # 4. Chromium-family via browser_cookie3 (installed browsers only).
+    for kind, jar in _chromium_jars(domain):
+        if any(_cookie_matches_domain(c, domain) for c in jar):
+            # Reduce jar to the requested domain so requests only sends
+            # cookies for the target host.
+            return _prune_jar(jar, domain), CookieSource(
+                "chromium", kind, (domain,)
+            )
 
     return None, None
+
+
+def _chromium_jars(domain: str) -> Iterable[tuple[str, CookieJar]]:
+    """Yield (kind, jar) for each Chromium-family browser that has a cookie DB."""
+    try:
+        import browser_cookie3  # type: ignore
+    except ImportError:
+        return
+    for kind, pats in CHROMIUM_GLOBS.items():
+        if not any(glob.glob(_expand(p)) for p in pats):
+            continue
+        try:
+            yield kind, getattr(browser_cookie3, kind)(domain_name=domain)
+        except Exception as e:  # noqa: BLE001 — locked keyring, unreadable DB, etc.
+            log.debug("skip %s: %s", kind, e)
 
 
 def _cookie_matches_domain(c: Cookie, domain: str) -> bool:
@@ -253,26 +280,8 @@ def discover_sources(domain: str) -> list[CookieSource]:
             continue
         if hosts:
             found.append(CookieSource("firefox", str(path), tuple(hosts)))
-    # Chromium: best-effort probe so the doctor output only mentions
-    # Chromium when a Chromium-family store actually loaded. Locked
-    # keyring / missing browser_cookie3 → silent skip.
-    try:
-        import browser_cookie3  # type: ignore
-
-        for kind, loader in (
-            ("chrome", browser_cookie3.chrome),
-            ("chromium", browser_cookie3.chromium),
-            ("edge", browser_cookie3.edge),
-            ("brave", browser_cookie3.brave),
-            ("opera", browser_cookie3.opera),
-            ("vivaldi", browser_cookie3.vivaldi),
-        ):
-            try:
-                jar = loader(domain_name=domain)
-            except Exception:  # noqa: BLE001 — locked keyring, missing browser, etc.
-                continue
-            if any(_cookie_matches_domain(c, domain) for c in jar):
-                found.append(CookieSource("chromium", kind, (domain,)))
-    except ImportError:
-        pass
+    # Chromium: only mention a Chromium-family store when one actually loaded.
+    for kind, jar in _chromium_jars(domain):
+        if any(_cookie_matches_domain(c, domain) for c in jar):
+            found.append(CookieSource("chromium", kind, (domain,)))
     return found

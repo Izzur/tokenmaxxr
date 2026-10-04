@@ -62,9 +62,39 @@ def test_missing_everywhere(tmp_path: Path, monkeypatch):
         "FIREFOX_GLOBS",
         [str(empty / "*" / "cookies.sqlite")],
     )
+    monkeypatch.setattr(cookies, "CHROMIUM_GLOBS", {})
     jar, src = resolve("app.cline.bot")
     assert jar is None
     assert src is None
+
+
+def test_chromium_probe_skips_uninstalled_browsers(monkeypatch, tmp_path: Path):
+    """browser_cookie3 hits the OS keyring per browser, so never call it for
+    a browser that has no cookie DB on disk."""
+    import sys
+    import types
+    from http.cookiejar import CookieJar
+
+    calls: list[str] = []
+    fake = types.ModuleType("browser_cookie3")
+    for kind in ("brave", "chrome"):
+        setattr(fake, kind, lambda domain_name, _k=kind: calls.append(_k) or CookieJar())
+    monkeypatch.setitem(sys.modules, "browser_cookie3", fake)
+    monkeypatch.setattr(
+        cookies, "FIREFOX_GLOBS", [str(tmp_path / "none" / "*" / "cookies.sqlite")]
+    )
+    (tmp_path / "brave" / "Default").mkdir(parents=True)
+    (tmp_path / "brave" / "Default" / "Cookies").touch()
+    monkeypatch.setattr(
+        cookies,
+        "CHROMIUM_GLOBS",
+        {
+            "brave": (str(tmp_path / "brave" / "*" / "Cookies"),),
+            "chrome": (str(tmp_path / "chrome" / "*" / "Cookies"),),
+        },
+    )
+    assert resolve("commandcode.ai") == (None, None)
+    assert calls == ["brave"]
 
 
 def test_firefox_glob(monkeypatch, tmp_path: Path):

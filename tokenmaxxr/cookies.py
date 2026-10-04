@@ -275,10 +275,10 @@ def discover_sources(domain: str) -> list[CookieSource]:
     found: list[CookieSource] = []
     for path in _glob_paths():
         try:
-            _cookies, hosts = _read_firefox_db(path, domain)
+            cookies, hosts = _read_firefox_db(path, domain)
         except sqlite3.OperationalError:
             continue
-        if hosts:
+        if cookies:
             found.append(CookieSource("firefox", str(path), tuple(hosts)))
     # Chromium: only mention a Chromium-family store when one actually loaded.
     for kind, jar in _chromium_jars(domain):

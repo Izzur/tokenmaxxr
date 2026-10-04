@@ -52,35 +52,33 @@ def _collect_one(
     jar = None
     if provider.cookie_domain:
         jar, _source = resolve_cookies(provider.cookie_domain, override=override)
-        if jar is None:
-            return ProviderResult(
-                id=slug,
-                name=provider.name,
-                status="no-auth",
-                error=f"no cookies for {provider.cookie_domain}",
-            )
-
-    # Live fetch.
-    try:
-        raw = provider.fetch_raw(jar)
-        windows = provider.to_rows(raw)
-    except NoAuth as e:
-        return ProviderResult(id=slug, name=provider.name, status="no-auth", error=str(e))
-    except Exception as e:  # noqa: BLE001 — boundary, isolate per-provider
-        log.warning("provider %s failed: %s", slug, e)
+    result = live_fetch(provider, jar)
+    if result.status == "error":
+        log.warning("provider %s failed: %s", slug, result.error)
         stale = cache.read_any_age(slug)
         if stale is not None:
             return stale
+    if result.status == "ok":
+        cache.write(slug, result)
+        history.append(result)
+    return result
+
+
+def live_fetch(provider, jar) -> ProviderResult:
+    """One live fetch, no cache or history. `jar` is None for token providers
+    and for cookie providers whose cookies did not resolve."""
+    slug, name = provider.slug, provider.name
+    if provider.cookie_domain and jar is None:
         return ProviderResult(
             id=slug,
-            name=provider.name,
-            status="error",
-            error=str(e),
+            name=name,
+            status="no-auth",
+            error=f"no cookies for {provider.cookie_domain}",
         )
-
-    result = ProviderResult(
-        id=slug, name=provider.name, status="ok", windows=windows
-    )
-    cache.write(slug, result)
-    history.append(result)
-    return result
+    try:
+        windows = provider.to_rows(provider.fetch_raw(jar))
+    except NoAuth as e:
+        return ProviderResult(id=slug, name=name, status="no-auth", error=str(e))
+    except Exception as e:  # noqa: BLE001 — boundary, isolate per-provider
+        return ProviderResult(id=slug, name=name, status="error", error=str(e))
+    return ProviderResult(id=slug, name=name, status="ok", windows=windows)

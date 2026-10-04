@@ -22,7 +22,7 @@ uv pip install -e ".[serve]"  # add [serve] for `tokenmaxxr serve`
 tokenmaxxr              # human table
 tokenmaxxr --json       # machine-readable schema:1
 tokenmaxxr --refresh    # bypass the 300s cache
-tokenmaxxr doctor       # diagnose cookie discovery
+tokenmaxxr doctor       # live-check auth + fetch per provider (exit 1 on failure)
 tokenmaxxr serve        # WebUI + HTTP API
 ```
 

@@ -9,8 +9,7 @@ from typing import Sequence
 
 from tokenmaxxr import __version__
 from tokenmaxxr import cookies as _cookies
-from tokenmaxxr import fetch_all
-from tokenmaxxr.cookies import discover_sources
+from tokenmaxxr import config, fetch, fetch_all
 from tokenmaxxr.providers import get_provider, known_slugs
 from tokenmaxxr.schema import dumps
 
@@ -74,7 +73,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = p.add_subparsers(dest="command", required=False)
 
-    sub.add_parser("doctor", help="show which cookie stores could be used per provider")
+    sub.add_parser("doctor", help="live-check auth and fetch for each provider")
 
     serve = sub.add_parser("serve", help="run the local web dashboard")
     serve.add_argument("--host", default="127.0.0.1")
@@ -125,30 +124,44 @@ def _print_table(doc: dict) -> None:
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
-    # Use the module reference so monkeypatching `cookies.discover_sources` is
-    # picked up here (it would be missed if we imported the name directly).
-    lines: list[str] = []
-    for slug in known_slugs():
+    """Live-check every provider: config state, auth source, real fetch result.
+
+    Uses module references (`_cookies.x`, `fetch.x`) so tests can monkeypatch.
+    Exit 1 when any checked provider is not ok.
+    """
+    overrides = _parse_cookie_overrides(args.cookie_file or [])
+    cfg_path = config.config_path()
+    print(f"config: {cfg_path}" + ("" if cfg_path.exists() else " (missing, all providers on)"))
+    enabled = set(config.select_providers(known_slugs()))
+    failed = False
+    for slug in args.provider or known_slugs():
         prov = get_provider(slug)
-        if not prov.cookie_domain:
-            lines.append(f"# {prov.name} ({slug}) — token file")
-            lines.append(f"  {prov.auth_hint()}")
-            lines.append("")
+        print(f"\n# {prov.name} ({slug})")
+        if not args.provider and slug not in enabled:
+            print("  excluded by config")
             continue
-        sources = _cookies.discover_sources(prov.cookie_domain)
-        lines.append(f"# {prov.name} ({slug}) — domain: {prov.cookie_domain}")
-        if not sources:
-            lines.append("  no cookie stores discovered")
-            lines.append(
-                f"  remediation: log in to {prov.cookie_domain} in your browser, "
-                "or pass --cookie-file SLUG=/path/to/cookies.sqlite"
-            )
+        jar = None
+        if prov.cookie_domain:
+            jar, src = _cookies.resolve(prov.cookie_domain, override=overrides.get(slug))
+            if src is None:
+                print(f"  auth:  no cookies for {prov.cookie_domain} in any browser store")
+                print(f"         log in at {prov.cookie_domain}, or --cookie-file {slug}=/path/cookies.sqlite")
+            else:
+                print(f"  auth:  {src.kind} {src.detail} ({len(jar)} cookies)")
+                others = [
+                    f"{s.kind} {s.detail}"
+                    for s in _cookies.discover_sources(prov.cookie_domain)
+                    if (s.kind, s.detail) != (src.kind, src.detail)
+                ]
+                for o in others:
+                    print(f"  also:  {o}")
         else:
-            for s in sources:
-                lines.append(f"  - {s.kind}: {s.detail}")
-        lines.append("")
-    sys.stdout.write("\n".join(lines))
-    return 0
+            print(f"  auth:  {prov.auth_hint()}")
+        r = fetch.live_fetch(prov, jar)
+        usage = " ".join(f"{w.label}:{w.pct_used}%" for w in r.windows)
+        print(f"  live:  {r.status}  {usage or r.error or ''}".rstrip())
+        failed |= r.status != "ok"
+    return 1 if failed else 0
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:

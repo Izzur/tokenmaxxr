@@ -14,9 +14,20 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 - Ollama Cloud: support the usage-based Pro plan ("Monthly usage $X of $Y
   used"), reported as a 30d window. Legacy 5h / 7d plans still work.
 
+### Changed
+- `tokenmaxxr doctor` now live-checks each provider: shows the config file,
+  which cookie store or token file is used (plus other candidate stores),
+  and the real fetch result or error, bypassing the cache. Honors config
+  include/exclude, `--provider` and `--cookie-file`; exits 1 when any
+  checked provider is not ok.
+
 ### Fixed
 - Cookie lookup only probes Chromium-family browsers that have a cookie DB
   on disk, so a locked KDE Wallet no longer pops a "misbehaving app" alert.
+- `doctor` no longer lists Firefox profiles that hold no cookies for the
+  provider's domain.
+- OpenCode Go: workspace discovery crashed on redirects
+  (`'Response' object has no attribute 'decode'`).
 
 ## 1.1.0 — 2026-09-06
 

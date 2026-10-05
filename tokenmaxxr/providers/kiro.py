@@ -198,6 +198,9 @@ class KiroProvider:
                         label=label,
                         pct_used=_pct(used, limit),
                         reset_at=_epoch_iso(item.get("nextDateReset")) or common_reset,
+                        used=round(used, 2),
+                        limit=limit,
+                        unit=(item.get("displayNamePlural") or "credits").lower(),
                     )
                 )
         if not windows:

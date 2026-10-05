@@ -64,10 +64,17 @@ class CommandCodeProvider:
         if limits.get("limited"):
             for key, label in _WINDOWS:
                 w = limits.get(key) or {}
-                cap = _num(w.get("cap"))
+                cap, used = _num(w.get("cap")), _num(w.get("used"))
                 if cap > 0:
                     windows.append(
-                        UsageWindow(label=label, pct_used=_pct(_num(w.get("used")), cap), reset_at=_ms_iso(w.get("resetAt")))
+                        UsageWindow(
+                            label=label,
+                            pct_used=_pct(used, cap),
+                            reset_at=_ms_iso(w.get("resetAt")),
+                            used=round(used, 2),
+                            limit=cap,
+                            unit="$",
+                        )
                     )
         credits = data.get("credits") or {}
         granted = _num(credits.get("monthlyCreditsGranted"))
@@ -79,6 +86,9 @@ class CommandCodeProvider:
                     label="30d",
                     pct_used=_pct(granted - remaining, granted),
                     reset_at=parse_iso_utc(period_end) if period_end else None,
+                    used=round(granted - remaining, 2),
+                    limit=granted,
+                    unit="credits",
                 )
             )
         if not windows:

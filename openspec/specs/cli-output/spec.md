@@ -5,7 +5,7 @@ TBD - created by archiving change add-quota-aggregator. Update Purpose after arc
 ## Requirements
 ### Requirement: Versioned JSON output contract
 
-The CLI SHALL support `--json` producing a stable, versioned JSON document. The document MUST include a top-level `schema` field (integer, currently `1`), `fetched_at` (UTC ISO 8601), and a `providers` array. Each provider entry MUST include `id`, `name`, `status` (`ok`, `stale`, `error`, or `no-auth`), and a `windows` array of `{label, pct_used, reset_at}` objects. The schema version MUST NOT change without a corresponding spec change.
+The CLI SHALL support `--json` producing a stable, versioned JSON document. The document MUST include a top-level `schema` field (integer, currently `1`), `fetched_at` (UTC ISO 8601), and a `providers` array. Each provider entry MUST include `id`, `name`, `status` (`ok`, `stale`, `error`, or `no-auth`), and a `windows` array of `{label, pct_used, reset_at}` objects. A window MAY additionally carry `used`, `limit` (numbers) and `unit` (`$` or a plural noun such as `credits`) when the provider reports absolute amounts; these keys MUST be omitted, not null, when unknown, and consumers MUST NOT require them. The schema version MUST NOT change without a corresponding spec change.
 
 #### Scenario: Machine consumers get stable shape
 - **WHEN** any consumer runs `tokenmaxxr --json`

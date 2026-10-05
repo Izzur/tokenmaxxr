@@ -13,11 +13,10 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tokenmaxxr.schema import ProviderResult, UsageWindow
+from tokenmaxxr.schema import ProviderResult, UsageWindow, window_dict
 
 DEFAULT_TTL_SECONDS = 300
 
@@ -89,7 +88,7 @@ def write(slug: str, result: ProviderResult) -> None:
     payload = {
         "id": result.id,
         "name": result.name,
-        "windows": [asdict(w) for w in result.windows],
+        "windows": [window_dict(w) for w in result.windows],
     }
     data = {
         "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -118,6 +117,9 @@ def _payload_to_result(
                 label=w["label"],
                 pct_used=int(w["pct_used"]),
                 reset_at=w.get("reset_at"),
+                used=w.get("used"),
+                limit=w.get("limit"),
+                unit=w.get("unit"),
             )
             for w in payload.get("windows", [])
             if isinstance(w, dict) and "label" in w and "pct_used" in w

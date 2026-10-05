@@ -21,6 +21,16 @@ class UsageWindow:
     label: str  # canonical: "5h", "7d", "30d"
     pct_used: int  # 0..100
     reset_at: str | None  # ISO 8601 UTC, or None if unknown
+    # Optional absolute amounts when the provider reports them. unit is "$"
+    # for dollars, else a plural noun ("credits"). Omitted from JSON if None.
+    used: float | None = None
+    limit: float | None = None
+    unit: str | None = None
+
+
+def window_dict(w: UsageWindow) -> dict[str, Any]:
+    d = asdict(w)
+    return {k: v for k, v in d.items() if v is not None or k == "reset_at"}
 
 
 @dataclass
@@ -50,7 +60,7 @@ def build_document(
                 "id": p.id,
                 "name": p.name,
                 "status": p.status,
-                "windows": [asdict(w) for w in p.windows],
+                "windows": [window_dict(w) for w in p.windows],
                 **({"error": p.error} if p.error else {}),
             }
             for p in providers

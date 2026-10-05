@@ -53,9 +53,10 @@ class OllamaCloudProvider:
         windows: list[UsageWindow] = []
         for el in soup.find_all(attrs={"aria-label": True}):
             label_attr = el.get("aria-label", "")
-            pct = _pct(label_attr.strip())
-            if pct is None:
+            parsed = _parse(label_attr.strip())
+            if parsed is None:
                 continue
+            pct, used, cap = parsed
             kind = label_attr.split(None, 1)[0]
             reset_at = _sibling_reset_iso(el)
             windows.append(
@@ -63,6 +64,9 @@ class OllamaCloudProvider:
                     label=_label_for(kind),
                     pct_used=pct,
                     reset_at=reset_at,
+                    used=used,
+                    limit=cap,
+                    unit="$" if cap is not None else None,
                 )
             )
         if not windows:
@@ -73,7 +77,9 @@ class OllamaCloudProvider:
         return windows
 
 
-def _pct(label: str) -> int | None:
+def _parse(label: str) -> tuple[int, float | None, float | None] | None:
+    """aria-label → (pct, used $, limit $); dollars only on the monthly plan."""
+    used = cap = None
     try:
         if m := _LABEL_RE.match(label):
             pct = float(m.group(2))
@@ -84,7 +90,7 @@ def _pct(label: str) -> int | None:
             return None
     except (ValueError, ZeroDivisionError):
         return None
-    return max(0, min(100, int(round(pct))))
+    return max(0, min(100, int(round(pct)))), used, cap
 
 
 def _sibling_reset_iso(el) -> str | None:

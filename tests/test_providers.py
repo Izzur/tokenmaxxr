@@ -79,8 +79,8 @@ def test_ollama_cloud_monthly_budget():
         text=(FIX / "ollama_cloud_monthly.html").read_text(),
     )
     rows = get_provider("ollama-cloud").to_rows(raw)
-    assert [(w.label, w.pct_used, w.reset_at) for w in rows] == [
-        ("30d", 46, "2026-10-18T04:46:29Z")
+    assert [(w.label, w.pct_used, w.reset_at, w.used, w.limit, w.unit) for w in rows] == [
+        ("30d", 46, "2026-10-18T04:46:29Z", 27.5, 60.0, "$")
     ]
 
 
@@ -177,6 +177,7 @@ def test_kiro_usage_json():
     by = {w.label: w for w in rows}
     assert set(by) == {"30d", "trial"}
     assert by["30d"].pct_used == 40 and by["30d"].reset_at == "2025-10-01T00:00:00Z"
+    assert (by["30d"].used, by["30d"].limit, by["30d"].unit) == (40.5, 100.0, "credits")
     assert by["trial"].pct_used == 20 and by["trial"].reset_at == "2025-09-27T19:06:40Z"
 
 
@@ -278,6 +279,8 @@ def test_commandcode_usage_json():
     assert by["5h"].pct_used == 50 and by["5h"].reset_at == "2026-09-19T07:53:20Z"
     assert by["7d"].pct_used == 10
     assert by["30d"].pct_used == 25 and by["30d"].reset_at == "2026-10-18T01:18:27Z"
+    assert (by["5h"].used, by["5h"].limit, by["5h"].unit) == (7.0, 14, "$")
+    assert (by["30d"].used, by["30d"].limit, by["30d"].unit) == (17.5, 70, "credits")
 
 
 def test_commandcode_401_is_no_auth():

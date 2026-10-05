@@ -51,14 +51,17 @@ The dashboard degrades gracefully: with no cookies, every card shows `no-auth` a
       "name": "Ollama Cloud",
       "status": "ok",
       "windows": [
-        {"label": "5h", "pct_used": 47, "reset_at": "2026-07-22T20:00:00Z"}
+        {"label": "30d", "pct_used": 46, "reset_at": "2026-07-22T20:00:00Z",
+         "used": 27.5, "limit": 60, "unit": "$"}
       ]
     }
   ]
 }
 ```
 
-`status` is one of `ok` | `stale` | `no-auth` | `error`.
+`status` is one of `ok` | `stale` | `no-auth` | `error`. `used` / `limit` /
+`unit` appear only when the provider reports absolute amounts (`unit` is `$`
+or a plural noun like `credits`).
 
 ## Config
 

@@ -100,7 +100,7 @@ def _print_table(doc: dict) -> None:
         windows = prov.get("windows") or []
         if windows:
             label = ", ".join(
-                f"{w.get('label','?')}:{w.get('pct_used',0)}%" for w in windows
+                f"{w.get('label','?')}:{w.get('pct_used',0)}%{_amount(w)}" for w in windows
             )
         else:
             label = "(no windows)"
@@ -121,6 +121,17 @@ def _print_table(doc: dict) -> None:
     print(fmt.format("PROVIDER", "STATUS", "USAGE", "RESET", "ERROR"))
     for r in rows:
         print(fmt.format(*r))
+
+
+def _amount(w: dict) -> str:
+    """' ($1.50/$60)' or ' (220/1000 credits)'; '' when the window has no amounts."""
+    if w.get("limit") is None:
+        return ""
+    u, lim = w.get("unit") or "", w["limit"]
+    used = w.get("used") or 0
+    if u == "$":
+        return f" (${used:.2f}/${lim:g})"
+    return f" ({used:g}/{lim:g} {u})".replace(" )", ")")
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:

@@ -1,7 +1,7 @@
 {
     "id": "tokenMaxxr",
     "name": "tokenmaxxr",
-    "description": "AI subscription quota (Claude, Kiro, ClinePass, Ollama Cloud, OpenCode Go) in the DankBar. Runs `tokenmaxxr --json`.",
+    "description": "AI subscription quota (Claude, Kiro, ClinePass, Command Code, Ollama Cloud, OpenCode Go) in the DankBar. Runs `tokenmaxxr --json`.",
     "version": "1.1.0",
     "license": "MIT",
     "author": "Izzur",

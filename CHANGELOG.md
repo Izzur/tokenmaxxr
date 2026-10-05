@@ -14,6 +14,16 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 - Ollama Cloud: support the usage-based Pro plan ("Monthly usage $X of $Y
   used"), reported as a 30d window. Legacy 5h / 7d plans still work.
 
+- Absolute amounts: windows may carry optional `used` / `limit` / `unit`
+  (schema stays 1, keys omitted when unknown). Filled for Ollama Cloud
+  monthly ($), Command Code 5h / 7d ($) and 30d (credits), Kiro (credits).
+  Shown in the CLI table and the DMS popout.
+- DMS widget: `pill` setting `soonest` (default) | `hottest` | `cycle`
+  (`cycleSeconds`, default 5).
+- DMS widget: `warn` / `crit` thresholds (default 70 / 90) color the bar
+  icon and fire `notify-send` once per window per threshold crossed
+  (`notify: false` to disable).
+
 ### Changed
 - `tokenmaxxr doctor` now live-checks each provider: shows the config file,
   which cookie store or token file is used (plus other candidate stores),

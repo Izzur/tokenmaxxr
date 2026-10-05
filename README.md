@@ -110,15 +110,34 @@ ln -s "$PWD/tokenmaxxr/dms/TokenMaxxr" ~/.config/DankMaterialShell/plugins/Token
 ```
 
 Then DMS Settings → Plugins → enable **tokenmaxxr**, and add it to a bar
-section. Pill shows `C 3d 4h`: for each provider take its longest window
-(30d, 7d, …), then show the provider whose longest window resets soonest and
-the countdown to it. Left click opens a popout with every window, progress
-bar and reset countdown. Right click forces `--refresh`.
+section. Left click opens a popout with every window, progress bar, reset
+countdown and amounts (`$0.07 / $60`). Right click forces `--refresh`.
 
-Optional settings in `~/.config/DankMaterialShell/plugin_settings.json`:
+Pill modes (`pill` setting):
+
+- `soonest` (default), e.g. `C 3d 4h`: for each provider take its longest
+  window (30d, 7d, …), show the one that resets soonest and its countdown.
+- `hottest`, e.g. `C 47%`: the most-used window across all providers.
+- `cycle`: rotates `<tag> <pct>%` through providers every `cycleSeconds`.
+
+The icon turns warning/error color once any window reaches `warn` / `crit`,
+and `notify-send` fires once per window each time it crosses a threshold
+(again after the window resets).
+
+Optional settings in `~/.config/DankMaterialShell/plugin_settings.json`
+(DMS reads this file at startup; run `dms restart` after editing):
 
 ```json
-"tokenMaxxr": { "enabled": true, "command": "tokenmaxxr --json", "interval": 300 }
+"tokenMaxxr": {
+  "enabled": true,
+  "command": "tokenmaxxr --json",
+  "interval": 300,
+  "pill": "soonest",
+  "cycleSeconds": 5,
+  "warn": 70,
+  "crit": 90,
+  "notify": true
+}
 ```
 
 ## Waybar

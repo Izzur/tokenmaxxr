@@ -7,17 +7,32 @@ import qs.Widgets
 import qs.Modules.Plugins
 
 // tokenmaxxr DankBar widget.
-// Pill: "<tag> <countdown>" — take each provider's longest window (30d, 7d…),
-// show the one that resets soonest. Popout: every provider, every window,
-// progress bar + reset time. Left click: popout. Right click: --refresh.
+// Pill modes ("pill" setting):
+//   soonest: "<tag> <countdown>" — each provider's longest window (30d, 7d…),
+//            the one that resets soonest.
+//   hottest: "<tag> <pct>%" — the most-used window across all providers.
+//   cycle:   rotates "<tag> <pct>%" through providers (each one's hottest).
+// Icon turns warning/error color when any window crosses warn/crit, and
+// notify-send fires once per window per level crossed.
+// Popout: every provider, every window, progress bar, reset time, $ amounts.
+// Left click: popout. Right click: --refresh.
 // Settings (edit ~/.config/DankMaterialShell/plugin_settings.json → "tokenMaxxr"):
-//   "command":  shell command emitting schema:1 JSON  (default: tokenmaxxr --json)
-//   "interval": seconds between polls                  (default: 300)
+//   "command":      shell command emitting schema:1 JSON  (default: tokenmaxxr --json)
+//   "interval":     seconds between polls                  (default: 300)
+//   "pill":         "soonest" | "hottest" | "cycle"       (default: soonest)
+//   "cycleSeconds": seconds per provider in cycle mode     (default: 5)
+//   "warn", "crit": percent thresholds                     (default: 70, 90)
+//   "notify":       false disables notify-send             (default: true)
 PluginComponent {
     id: root
 
     readonly property string command: pluginData?.command || "tokenmaxxr --json"
     readonly property int interval: pluginData?.interval || 300
+    readonly property string pillMode: pluginData?.pill || "soonest"
+    readonly property int cycleSeconds: pluginData?.cycleSeconds || 5
+    readonly property int warn: pluginData?.warn || 70
+    readonly property int crit: pluginData?.crit || 90
+    readonly property bool notifyEnabled: pluginData?.notify ?? true
     property var doc: null
     property bool loading: false
     property string lastError: ""
@@ -31,7 +46,47 @@ PluginComponent {
     function tag(p) { return tags[p.id] || p.id.slice(0, 2).toUpperCase(); }
 
     function pctColor(pct) {
-        return pct >= 90 ? Theme.error : pct >= 70 ? Theme.warning : Theme.primary;
+        return pct >= crit ? Theme.error : pct >= warn ? Theme.warning : Theme.primary;
+    }
+
+    function level(pct) { return pct >= crit ? 2 : pct >= warn ? 1 : 0; }
+
+    // "$1.60 / $35" or "220.61 / 1000 credits"; "" when the window has no amounts.
+    function amountText(w) {
+        if (w.limit === undefined || w.limit === null) return "";
+        const used = w.used || 0;
+        if (w.unit === "$") return "$" + used.toFixed(2) + " / $" + w.limit;
+        return used + " / " + w.limit + (w.unit ? " " + w.unit : "");
+    }
+
+    // Providers with usable data (ok, or stale from cache).
+    readonly property var liveProviders: (doc?.providers || []).filter(p => p.status !== "no-auth" && p.status !== "error")
+
+    // Most-used window of one provider (ties → soonest reset), or null.
+    function hottestOf(p) {
+        let best = null;
+        for (const w of (p.windows || [])) {
+            if (!best || w.pct_used > best.pct_used
+                || (w.pct_used === best.pct_used && (w.reset_at || "~") < (best.reset_at || "~"))) best = w;
+        }
+        return best;
+    }
+
+    readonly property var hottest: {
+        let best = null;
+        for (const p of liveProviders) {
+            const w = hottestOf(p);
+            if (w && (!best || w.pct_used > best.window.pct_used)) best = { provider: p, window: w };
+        }
+        return best;
+    }
+
+    property int cycleIndex: 0
+    Timer {
+        interval: root.cycleSeconds * 1000
+        running: root.pillMode === "cycle" && root.liveProviders.length > 1
+        repeat: true
+        onTriggered: root.cycleIndex++
     }
 
     function resetText(iso) {
@@ -55,8 +110,7 @@ PluginComponent {
     readonly property var soonest: {
         void tick;  // re-evaluate every minute so the countdown moves
         let best = null;
-        for (const p of (doc?.providers || [])) {
-            if (p.status === "no-auth" || p.status === "error") continue;
+        for (const p of liveProviders) {
             let longest = null;
             for (const w of (p.windows || [])) {
                 if (!w.reset_at) continue;
@@ -71,8 +125,50 @@ PluginComponent {
 
     readonly property string pillText: {
         if (!doc) return loading ? "…" : "tokenmaxxr";
+        if (pillMode === "hottest") {
+            return hottest ? tag(hottest.provider) + " " + hottest.window.pct_used + "%" : "no-auth";
+        }
+        if (pillMode === "cycle") {
+            const ps = liveProviders.filter(p => hottestOf(p));
+            if (!ps.length) return "no-auth";
+            const p = ps[cycleIndex % ps.length];
+            return tag(p) + " " + hottestOf(p).pct_used + "%";
+        }
         if (!soonest) return "no-auth";
         return tag(soonest.provider) + " " + resetText(soonest.window.reset_at).replace("resets in ", "").replace("resets now", "now");
+    }
+
+    readonly property color iconColor: lastError ? Theme.error
+        : hottest && level(hottest.window.pct_used) > 0 ? pctColor(hottest.window.pct_used)
+        : Theme.surfaceText
+
+    // Highest level already notified per "provider/window"; drops back when
+    // the window resets so the next crossing notifies again.
+    property var notified: ({})
+
+    // ponytail: one widget instance per bar/screen; only the first screen's
+    // notifies. Two bars on the same screen would double-notify.
+    readonly property bool notifier: !parentScreen || parentScreen === Quickshell.screens[0]
+
+    onDocChanged: {
+        if (!doc) return;
+        const next = {};
+        // Read doc directly: liveProviders may not have re-evaluated yet.
+        for (const p of doc.providers || []) {
+            if (p.status === "no-auth" || p.status === "error") continue;
+            for (const w of (p.windows || [])) {
+                const key = p.id + "/" + w.label, lvl = level(w.pct_used);
+                next[key] = lvl;
+                if (notifyEnabled && notifier && lvl > (notified[key] || 0)) {
+                    const amt = amountText(w);
+                    Quickshell.execDetached(["notify-send", "-a", "tokenmaxxr",
+                        "-u", lvl === 2 ? "critical" : "normal",
+                        p.name + " " + w.label + " at " + w.pct_used + "%",
+                        (amt ? amt + ", " : "") + (resetText(w.reset_at) || "no reset time")]);
+                }
+            }
+        }
+        notified = next;
     }
 
     property int tick: 0
@@ -127,7 +223,7 @@ PluginComponent {
             DankIcon {
                 name: "data_usage"
                 size: root.iconSize
-                color: root.lastError ? Theme.error : Theme.surfaceText
+                color: root.iconColor
                 anchors.verticalCenter: parent.verticalCenter
             }
             StyledText {
@@ -144,7 +240,7 @@ PluginComponent {
         DankIcon {
             name: "data_usage"
             size: root.iconSize
-            color: root.lastError ? Theme.error : Theme.surfaceText
+            color: root.iconColor
         }
     }
 
@@ -222,10 +318,11 @@ PluginComponent {
                                         font.pixelSize: Theme.fontSizeSmall
                                         color: Theme.surfaceVariantText
                                         width: parent.width - 64 - pctLabel.width
+                                        elide: Text.ElideRight
                                     }
                                     StyledText {
                                         id: pctLabel
-                                        text: modelData.pct_used + "%"
+                                        text: (root.amountText(modelData) ? root.amountText(modelData) + "  " : "") + modelData.pct_used + "%"
                                         font.pixelSize: Theme.fontSizeSmall
                                         font.weight: Font.Medium
                                         color: root.pctColor(modelData.pct_used)

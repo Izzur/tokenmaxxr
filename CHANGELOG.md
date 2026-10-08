@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.2.0 — 2026-10-08
 
 ### Added
 - Command Code provider (`commandcode`): uses the `commandcode.ai` browser
@@ -14,7 +14,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 - Ollama Cloud: support the credits-based Pro / Max plans ("Monthly credits
   used: $X of $Y"), reported as a 30d window with the reset taken from the
   page's "Refills … in N" text. Legacy 5h / 7d plans still work.
-
 - Absolute amounts: windows may carry optional `used` / `limit` / `unit`
   (schema stays 1, keys omitted when unknown). Filled for Ollama Cloud
   monthly ($), Command Code 5h / 7d ($) and 30d (credits), Kiro (credits).

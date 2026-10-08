@@ -11,8 +11,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   session cookie against `api.commandcode.ai` and reports 5h / 7d spend
   windows plus the 30d monthly credit grant (reset = billing period end).
   DMS pill tag `CC`.
-- Ollama Cloud: support the usage-based Pro plan ("Monthly usage $X of $Y
-  used"), reported as a 30d window. Legacy 5h / 7d plans still work.
+- Ollama Cloud: support the credits-based Pro / Max plans ("Monthly credits
+  used: $X of $Y"), reported as a 30d window with the reset taken from the
+  page's "Refills … in N" text. Legacy 5h / 7d plans still work.
 
 - Absolute amounts: windows may carry optional `used` / `limit` / `unit`
   (schema stays 1, keys omitted when unknown). Filled for Ollama Cloud
@@ -38,6 +39,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   provider's domain.
 - OpenCode Go: workspace discovery crashed on redirects
   (`'Response' object has no attribute 'decode'`).
+- Relative reset text "in 1 month" no longer parses as 1 minute.
 
 ## 1.1.0 — 2026-09-06
 

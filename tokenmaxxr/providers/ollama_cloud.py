@@ -1,22 +1,22 @@
 """Ollama Cloud provider.
 
 URL: https://ollama.com/settings
-Anchors on aria-label "<Kind> usage N% used". Pro has two modes:
-legacy plans show "Session usage" (5h) + "Weekly usage" (7d) percentages;
-new plans show one dollar budget, "Monthly usage $X of $Y used" (30d).
-Reset read from sibling element's data-time (ISO 8601).
+Anchors on the usage meters' aria-labels. Two plan shapes:
+legacy plans show "Session usage N% used" (5h) + "Weekly usage N% used" (7d),
+reset read from the sibling element's data-time (ISO 8601);
+credits plans (Pro/Max) show one dollar budget, "Monthly credits used: $X of $Y"
+(30d), reset parsed from the "Refills to $Y in 1 week." text (no timestamp).
 """
 
 from __future__ import annotations
 
 from http.cookiejar import CookieJar
-import json
 import re
 
 from bs4 import BeautifulSoup
 
 from tokenmaxxr.providers.base import Provider, RawHtml, register
-from tokenmaxxr.reset import parse_iso_utc
+from tokenmaxxr.reset import parse_iso_utc, parse_relative_to_utc
 from tokenmaxxr.schema import UsageWindow
 
 DASHBOARD_URL = "https://ollama.com/settings"
@@ -28,11 +28,13 @@ _LABEL_RE = re.compile(
     r"^(Session|Weekly|Daily|Monthly)\s+usage\s+(\d+(?:\.\d+)?)\s*%\s*(?:used)?\s*$",
     re.IGNORECASE,
 )
-# New usage-based Pro plan: "Monthly usage $0.01 of $60 used".
+# Credits plans: "Monthly credits used: $10.18 of $60". Loose between the
+# kind and the amounts, since Ollama rewords it (was "Monthly usage $X of $Y used").
 _DOLLAR_RE = re.compile(
-    r"^(Session|Weekly|Daily|Monthly)\s+usage\s+\$([\d,.]+)\s+of\s+\$([\d,.]+)\s*(?:used)?\s*$",
+    r"^(Session|Weekly|Daily|Monthly)\b[^$]*\$([\d,.]+)\s+of\s+\$([\d,.]+)",
     re.IGNORECASE,
 )
+_REFILL_RE = re.compile(r"\brefills?\b", re.IGNORECASE)
 
 
 class OllamaCloudProvider:
@@ -58,7 +60,9 @@ class OllamaCloudProvider:
                 continue
             pct, used, cap = parsed
             kind = label_attr.split(None, 1)[0]
-            reset_at = _sibling_reset_iso(el)
+            # $ meter has no timestamp nearby; walking up for data-time would
+            # hit the "Recent requests" table and report a past request time.
+            reset_at = _refill_reset_iso(soup) if cap is not None else _sibling_reset_iso(el)
             windows.append(
                 UsageWindow(
                     label=_label_for(kind),
@@ -70,15 +74,12 @@ class OllamaCloudProvider:
                 )
             )
         if not windows:
-            # Fall back: data embedded in Next.js payload (data-* props).
-            windows.extend(_rows_from_next_payload(raw.text))
-        if not windows:
             raise RuntimeError("no usage aria-labels found on ollama settings")
         return windows
 
 
 def _parse(label: str) -> tuple[int, float | None, float | None] | None:
-    """aria-label → (pct, used $, limit $); dollars only on the monthly plan."""
+    """aria-label → (pct, used $, limit $); dollars only on credits plans."""
     used = cap = None
     try:
         if m := _LABEL_RE.match(label):
@@ -105,6 +106,13 @@ def _sibling_reset_iso(el) -> str | None:
     return None
 
 
+def _refill_reset_iso(soup) -> str | None:
+    # ponytail: the page only says "in 1 week", so this can be up to one unit
+    # early; /settings/billing has the exact renewal date (monthly billing only).
+    text = soup.find(string=_REFILL_RE)
+    return parse_relative_to_utc(str(text)) if text else None
+
+
 def _label_for(kind: str) -> str:
     k = kind.lower()
     if k == "session":
@@ -116,46 +124,6 @@ def _label_for(kind: str) -> str:
     if k == "monthly":
         return "30d"
     return kind
-
-
-def _rows_from_next_payload(html: str) -> list[UsageWindow]:
-    """Ollama ships usage data inside the Next.js __NEXT_DATA__ script.
-    When the ARIA tree is missing (hydration timing), fall back to that.
-    """
-    import re as _re
-
-    m = _re.search(
-        r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, _re.DOTALL
-    )
-    if not m:
-        return []
-    try:
-        data = json.loads(m.group(1))
-    except json.JSONDecodeError:
-        return []
-    out: list[UsageWindow] = []
-    # Best-effort: walk the JSON looking for {kind, pct, reset_at}-shaped dicts.
-    def walk(node):
-        if isinstance(node, dict):
-            kind = node.get("kind") or node.get("window") or node.get("name")
-            pct = node.get("pct_used") or node.get("pct")
-            reset = node.get("reset_at") or node.get("resetTime")
-            if isinstance(kind, str) and isinstance(pct, (int, float)):
-                out.append(
-                    UsageWindow(
-                        label=_label_for(kind),
-                        pct_used=max(0, min(100, int(pct))),
-                        reset_at=parse_iso_utc(reset) if isinstance(reset, str) else None,
-                    )
-                )
-            for v in node.values():
-                walk(v)
-        elif isinstance(node, list):
-            for v in node:
-                walk(v)
-
-    walk(data)
-    return out
 
 
 register(OllamaCloudProvider.slug, OllamaCloudProvider)

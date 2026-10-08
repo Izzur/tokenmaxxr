@@ -1,6 +1,8 @@
 """Per-provider parser tests against HTML fixtures."""
 import importlib
 import json
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from tokenmaxxr.providers import get_provider
@@ -73,15 +75,16 @@ def test_ollama_cloud():
 
 
 def test_ollama_cloud_monthly_budget():
-    """Usage-based Pro plan: one $ budget instead of 5h/7d percentages."""
+    """Credits plan: one $ budget instead of 5h/7d percentages."""
     raw = RawHtml(
         url="https://ollama.com/settings",
         text=(FIX / "ollama_cloud_monthly.html").read_text(),
     )
-    rows = get_provider("ollama-cloud").to_rows(raw)
-    assert [(w.label, w.pct_used, w.reset_at, w.used, w.limit, w.unit) for w in rows] == [
-        ("30d", 46, "2026-10-18T04:46:29Z", 27.5, 60.0, "$")
-    ]
+    (w,) = get_provider("ollama-cloud").to_rows(raw)
+    assert (w.label, w.pct_used, w.used, w.limit, w.unit) == ("30d", 46, 27.5, 60.0, "$")
+    # "Refills to $60 in 1 week." → now + 7d, not the recent request's data-time.
+    left = datetime.fromisoformat(w.reset_at.replace("Z", "+00:00")) - datetime.now(timezone.utc)
+    assert timedelta(days=6, hours=23) < left <= timedelta(days=7)
 
 
 def test_opencode_workspace_discovery():

@@ -1,13 +1,27 @@
 <html>
 <body>
   <div>
-    <div class="relative group" data-usage-meter="">
-      <div aria-label="Monthly usage $27.50 of $60 used">
-        <button aria-label="gpt-oss:20b: 13 requests"></button>
+    <div id="extra-usage">
+      <h2>Usage credits<span>pro</span></h2>
+      <span id="usage-credits-balance">$32.50</span>
+      <p>
+        Refills to $60 in 1 week.
+      </p>
+    </div>
+    <h2>Usage breakdown</h2>
+    <div>
+      <div><span>Monthly credits used</span><span>$27.50</span></div>
+      <div class="relative group" data-usage-meter>
+        <div data-usage-track aria-label="Monthly credits used: $27.50 of $60">
+          <button aria-label="gpt-oss:20b: 13 requests" data-usage-segment></button>
+        </div>
       </div>
     </div>
-    <div class="local-time" data-time="2026-10-18T04:46:29Z">Resets in 1 week.</div>
+    <section id="recent-requests-self">
+      <table><tbody><tr>
+        <td class="local-time" data-time="2026-10-08T05:55:50.519733Z">just now</td>
+      </tr></tbody></table>
+    </section>
   </div>
-  <div id="extra-usage"><div data-time="2026-10-04T15:23:03.821025Z"></div></div>
 </body>
 </html>

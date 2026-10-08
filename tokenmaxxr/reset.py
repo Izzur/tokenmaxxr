@@ -13,7 +13,7 @@ _PATTERN = re.compile(
     r"(\d+)\s*(weeks?|w)|"
     r"(\d+)\s*(days?|d)|"
     r"(\d+)\s*(hours?|hrs?|h)|"
-    r"(\d+)\s*(minutes?|mins?|m)",
+    r"(\d+)\s*(minutes?|mins?|m\b)",  # \b: "1 month" is not 1 minute
     re.IGNORECASE,
 )
 

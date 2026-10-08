@@ -23,6 +23,7 @@ def test_relative_days_only():
 
 def test_relative_unparseable():
     assert parse_relative_to_utc("tomorrow") is None
+    assert parse_relative_to_utc("Refills to $60 in 1 month.") is None
 
 
 def test_iso_utc_z():

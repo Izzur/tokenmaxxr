@@ -1,7 +1,6 @@
 """Per-provider parser tests against HTML fixtures."""
 import importlib
 import json
-from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -75,16 +74,15 @@ def test_ollama_cloud():
 
 
 def test_ollama_cloud_monthly_budget():
-    """Credits plan: one $ budget instead of 5h/7d percentages."""
+    """Credits plan: one $ budget from the /dashboard credits breakdown."""
     raw = RawHtml(
-        url="https://ollama.com/settings",
+        url="https://ollama.com/dashboard",
         text=(FIX / "ollama_cloud_monthly.html").read_text(),
     )
     (w,) = get_provider("ollama-cloud").to_rows(raw)
-    assert (w.label, w.pct_used, w.used, w.limit, w.unit) == ("30d", 46, 27.5, 60.0, "$")
-    # "Refills to $60 in 1 week." → now + 7d, not the recent request's data-time.
-    left = datetime.fromisoformat(w.reset_at.replace("Z", "+00:00")) - datetime.now(timezone.utc)
-    assert timedelta(days=6, hours=23) < left <= timedelta(days=7)
+    # "Monthly credits $28.43" + "Refills to $60 on November 18, 2026."
+    assert (w.label, w.pct_used, w.used, w.limit, w.unit) == ("30d", 53, 31.57, 60.0, "$")
+    assert w.reset_at == "2026-11-18T00:00:00Z"
 
 
 def test_opencode_workspace_discovery():

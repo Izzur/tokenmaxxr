@@ -1,27 +1,25 @@
 <html>
 <body>
-  <div>
-    <div id="extra-usage">
-      <h2>Usage credits<span>pro</span></h2>
-      <span id="usage-credits-balance">$32.50</span>
-      <p>
-        Refills to $60 in 1 week.
+  <section aria-label="Usage">
+    <div id="dashboard-meter">
+      <div>Usage credits<span id="dashboard-plan">pro</span></div>
+      <p id="dashboard-included"><span id="usage-credits-balance">$28.43</span></p>
+      <p>Monthly credits refill in 1 week
+        <span>
+          <button aria-describedby="usage-credits-breakdown" aria-label="Usage credits breakdown" type="button"></button>
+          <span id="usage-credits-breakdown" role="tooltip">
+            <span><span>Monthly credits</span><span>$28.43</span></span>
+            <span>Refills to $60 on November 18, 2026. Unused monthly credits that are part of the subscription do not carry over.</span>
+            <span><span>Added credits</span><span id="extra-usage-balance">$0</span></span>
+            <span><span>Total</span><span>$28.43</span></span>
+          </span>
+        </span>
       </p>
     </div>
-    <h2>Usage breakdown</h2>
     <div>
-      <div><span>Monthly credits used</span><span>$27.50</span></div>
-      <div class="relative group" data-usage-meter>
-        <div data-usage-track aria-label="Monthly credits used: $27.50 of $60">
-          <button aria-label="gpt-oss:20b: 13 requests" data-usage-segment></button>
-        </div>
-      </div>
+      <div>Used this month</div>
+      <p id="dashboard-usage">$31.57</p>
     </div>
-    <section id="recent-requests-self">
-      <table><tbody><tr>
-        <td class="local-time" data-time="2026-10-08T05:55:50.519733Z">just now</td>
-      </tr></tbody></table>
-    </section>
-  </div>
+  </section>
 </body>
 </html>

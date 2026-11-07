@@ -1,40 +1,37 @@
 """Ollama Cloud provider.
 
-URL: https://ollama.com/settings
-Anchors on the usage meters' aria-labels. Two plan shapes:
-legacy plans show "Session usage N% used" (5h) + "Weekly usage N% used" (7d),
-reset read from the sibling element's data-time (ISO 8601);
-credits plans (Pro/Max) show one dollar budget, "Monthly credits used: $X of $Y"
-(30d), reset parsed from the "Refills to $Y in 1 week." text (no timestamp).
+URL: https://ollama.com/dashboard
+Two plan shapes:
+legacy plans show aria-labels "Session usage N% used" (5h) + "Weekly usage N% used"
+(7d), reset read from the sibling element's data-time (ISO 8601);
+credits plans (Pro/Max) show a "Usage credits" card whose #usage-credits-breakdown
+tooltip says "Monthly credits $LEFT" and "Refills to $CAP on November 18, 2026." (30d).
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from http.cookiejar import CookieJar
 import re
 
 from bs4 import BeautifulSoup
 
 from tokenmaxxr.providers.base import Provider, RawHtml, register
-from tokenmaxxr.reset import parse_iso_utc, parse_relative_to_utc
+from tokenmaxxr.reset import parse_iso_utc
 from tokenmaxxr.schema import UsageWindow
 
-DASHBOARD_URL = "https://ollama.com/settings"
+DASHBOARD_URL = "https://ollama.com/dashboard"
 
 # An aria-label like "Session usage 47% used" → label "Session", pct 47.
-# Ollama's settings page renders decimals ("31.7% used") and an optional
-# " used" suffix, so we accept both.
+# Ollama renders decimals ("31.7% used") and an optional " used" suffix.
 _LABEL_RE = re.compile(
     r"^(Session|Weekly|Daily|Monthly)\s+usage\s+(\d+(?:\.\d+)?)\s*%\s*(?:used)?\s*$",
     re.IGNORECASE,
 )
-# Credits plans: "Monthly credits used: $10.18 of $60". Loose between the
-# kind and the amounts, since Ollama rewords it (was "Monthly usage $X of $Y used").
-_DOLLAR_RE = re.compile(
-    r"^(Session|Weekly|Daily|Monthly)\b[^$]*\$([\d,.]+)\s+of\s+\$([\d,.]+)",
-    re.IGNORECASE,
-)
-_REFILL_RE = re.compile(r"\brefills?\b", re.IGNORECASE)
+# Credits plans, inside #usage-credits-breakdown: the remaining monthly balance,
+# and the refill line that carries both the cap and the exact reset date.
+_LEFT_RE = re.compile(r"Monthly credits\s*\$([\d,.]+)", re.IGNORECASE)
+_REFILL_RE = re.compile(r"Refills to \$([\d,.]+) on (\w+ \d{1,2}, \d{4})", re.IGNORECASE)
 
 
 class OllamaCloudProvider:
@@ -55,43 +52,53 @@ class OllamaCloudProvider:
         windows: list[UsageWindow] = []
         for el in soup.find_all(attrs={"aria-label": True}):
             label_attr = el.get("aria-label", "")
-            parsed = _parse(label_attr.strip())
-            if parsed is None:
+            m = _LABEL_RE.match(label_attr.strip())
+            if m is None:
                 continue
-            pct, used, cap = parsed
-            kind = label_attr.split(None, 1)[0]
-            # $ meter has no timestamp nearby; walking up for data-time would
-            # hit the "Recent requests" table and report a past request time.
-            reset_at = _refill_reset_iso(soup) if cap is not None else _sibling_reset_iso(el)
             windows.append(
                 UsageWindow(
-                    label=_label_for(kind),
-                    pct_used=pct,
-                    reset_at=reset_at,
-                    used=used,
-                    limit=cap,
-                    unit="$" if cap is not None else None,
+                    label=_label_for(m.group(1)),
+                    pct_used=_clamp(float(m.group(2))),
+                    reset_at=_sibling_reset_iso(el),
                 )
             )
+        if credits := _credits_window(soup):
+            windows.append(credits)
         if not windows:
-            raise RuntimeError("no usage aria-labels found on ollama settings")
+            raise RuntimeError("no usage meters found on ollama dashboard")
         return windows
 
 
-def _parse(label: str) -> tuple[int, float | None, float | None] | None:
-    """aria-label → (pct, used $, limit $); dollars only on credits plans."""
-    used = cap = None
-    try:
-        if m := _LABEL_RE.match(label):
-            pct = float(m.group(2))
-        elif m := _DOLLAR_RE.match(label):
-            used, cap = (float(g.replace(",", "")) for g in m.group(2, 3))
-            pct = used / cap * 100
-        else:
-            return None
-    except (ValueError, ZeroDivisionError):
+def _credits_window(soup) -> UsageWindow | None:
+    box = soup.find(id="usage-credits-breakdown")
+    if box is None:
         return None
-    return max(0, min(100, int(round(pct)))), used, cap
+    text = box.get_text(" ", strip=True)
+    left, refill = _LEFT_RE.search(text), _REFILL_RE.search(text)
+    if not (left and refill):
+        return None
+    try:
+        remaining = float(left.group(1).replace(",", ""))
+        cap = float(refill.group(1).replace(",", ""))
+        # shortcut: date only, read as UTC midnight; may be off by the account's TZ offset.
+        reset = datetime.strptime(refill.group(2), "%B %d, %Y").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    if cap <= 0:
+        return None
+    used = max(0.0, cap - remaining)
+    return UsageWindow(
+        label="30d",
+        pct_used=_clamp(used / cap * 100),
+        reset_at=reset.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        used=round(used, 2),
+        limit=cap,
+        unit="$",
+    )
+
+
+def _clamp(pct: float) -> int:
+    return max(0, min(100, int(round(pct))))
 
 
 def _sibling_reset_iso(el) -> str | None:
@@ -104,13 +111,6 @@ def _sibling_reset_iso(el) -> str | None:
             return parse_iso_utc(sibling["data-time"])
         parent = parent.parent
     return None
-
-
-def _refill_reset_iso(soup) -> str | None:
-    # ponytail: the page only says "in 1 week", so this can be up to one unit
-    # early; /settings/billing has the exact renewal date (monthly billing only).
-    text = soup.find(string=_REFILL_RE)
-    return parse_relative_to_utc(str(text)) if text else None
 
 
 def _label_for(kind: str) -> str:

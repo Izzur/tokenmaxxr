@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+- Ollama Cloud: the credits meter moved from `/settings` to `/dashboard`.
+  tokenmaxxr now reads the credits breakdown there (used = $cap − monthly
+  balance). The reset is now the exact refill date, not "in 1 week".
+
 ## 1.2.0 — 2026-10-08
 
 ### Added

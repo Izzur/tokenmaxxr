@@ -20,6 +20,7 @@ def _import_all() -> None:
     from tokenmaxxr.providers import claude  # noqa: F401
     from tokenmaxxr.providers import kiro  # noqa: F401
     from tokenmaxxr.providers import commandcode  # noqa: F401
+    from tokenmaxxr.providers import nous_portal  # noqa: F401
 
 
 _import_all()

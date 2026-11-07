@@ -6,6 +6,20 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## Unreleased
 
+### Added
+- Nous Portal provider (`nous-portal`): reports subscription credits as a 30d
+  $ window (used = monthly credits − balance, reset = billing period end).
+  Nous API keys can't see the balance. DMS pill tag `N`.
+- `tokenmaxxr login nous-portal`: one-time OAuth device login, the same flow
+  Hermes Agent uses (the portal only accepts Hermes' client ID). tokenmaxxr
+  keeps its own token in `$XDG_STATE_HOME/tokenmaxxr/nous-portal-auth.json`
+  (0600), reads `/api/oauth/account`, and refreshes the token under a file
+  lock because Nous refresh tokens are single-use. Without a login it falls
+  back to the billing page with browser cookies, which last about an hour
+  after the portal was last open. tokenmaxxr never sends the rotating
+  `nas-refresh` cookie, so a cold browser session shows `no-auth` instead of
+  signing the browser out.
+
 ### Fixed
 - Ollama Cloud: the credits meter moved from `/settings` to `/dashboard`.
   tokenmaxxr now reads the credits breakdown there (used = $cap − monthly

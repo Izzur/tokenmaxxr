@@ -10,7 +10,7 @@ from typing import Sequence
 from tokenmaxxr import __version__
 from tokenmaxxr import cookies as _cookies
 from tokenmaxxr import config, fetch, fetch_all
-from tokenmaxxr.providers import get_provider, known_slugs
+from tokenmaxxr.providers import get_provider, known_slugs, nous_portal
 from tokenmaxxr.schema import dumps
 
 
@@ -22,6 +22,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _cmd_doctor(args)
     if args.command == "serve":
         return _cmd_serve(args)
+    if args.command == "login":
+        return _cmd_login()
 
     overrides = _parse_cookie_overrides(getattr(args, "cookie_file", []) or [])
     try:
@@ -78,6 +80,9 @@ def _build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="run the local web dashboard")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
+
+    login = sub.add_parser("login", help="log in once so nous-portal stops depending on browser cookies")
+    login.add_argument("slug", choices=["nous-portal"])
 
     return p
 
@@ -173,6 +178,16 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         print(f"  live:  {r.status}  {usage or r.error or ''}".rstrip())
         failed |= r.status != "ok"
     return 1 if failed else 0
+
+
+def _cmd_login() -> int:
+    try:
+        nous_portal.login()
+    except Exception as e:  # noqa: BLE001 — CLI boundary: network, timeout, refusal
+        sys.stderr.write(f"tokenmaxxr: {e}\n")
+        return 1
+    print(f"Logged in; token saved to {nous_portal.auth_path()}")
+    return 0
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:

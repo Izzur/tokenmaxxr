@@ -289,3 +289,111 @@ def test_commandcode_401_is_no_auth():
     raw = RawHtml(url="x", text="", usage_status=401)
     with pytest.raises(NoAuth):
         get_provider("commandcode").to_rows(raw)
+
+
+def test_nous_portal_billing_page():
+    """Subscription credits from the RSC payload; the fixture splits that row across two chunks."""
+    raw = RawHtml(
+        url="https://portal.nousresearch.com/orgs/0a1b2c3d/billing",
+        text=(FIX / "nous_portal.html").read_text(),
+        usage_status=200,
+    )
+    (w,) = get_provider("nous-portal").to_rows(raw)
+    assert (w.label, w.pct_used, w.used, w.limit, w.unit) == ("30d", 1, 0.17, 22.0, "$")
+    assert w.reset_at == "2026-11-18T01:58:10Z"
+
+
+def test_nous_portal_auth_bounce_is_no_auth():
+    """Stale privy-token → /refresh (client-side refresh page); no session at all → /login."""
+    from tokenmaxxr.providers.base import NoAuth
+    for url in (
+        "https://portal.nousresearch.com/refresh?callbackUrl=%2Fbilling&soft=1",
+        "https://portal.nousresearch.com/login?callbackUrl=%2Fbilling",
+    ):
+        with pytest.raises(NoAuth):
+            get_provider("nous-portal").to_rows(RawHtml(url=url, text="", usage_status=200))
+
+
+def test_nous_portal_never_sends_refresh_cookie(monkeypatch):
+    """nas-refresh rotates on use; sending the browser's copy would sign the browser out."""
+    from http.cookiejar import Cookie, CookieJar
+    from types import SimpleNamespace
+    from tokenmaxxr.providers import nous_portal
+
+    sent = set()
+
+    def fake_session(jar, user_agent):
+        sent.update(c.name for c in jar)
+        return SimpleNamespace(get=lambda url, timeout: SimpleNamespace(url=url, text="", status_code=200))
+
+    monkeypatch.setattr(nous_portal, "make_session", fake_session)
+    jar = CookieJar()
+    for name in ("nas-refresh", "nas-session", "privy-token"):
+        jar.set_cookie(Cookie(0, name, "v", None, False, "portal.nousresearch.com", True,
+                              False, "/", True, True, None, False, None, None, {}))
+    nous_portal.NousPortalProvider().fetch_raw(jar)
+    assert sent == {"nas-session", "privy-token"}
+
+
+def test_nous_portal_account_api():
+    """`tokenmaxxr login` path reports the same window as the billing page."""
+    from tokenmaxxr.providers import nous_portal
+    raw = RawHtml(
+        url=nous_portal.ACCOUNT_URL,
+        text=json.dumps({"subscription": {
+            "plan": "Plus", "monthly_credits": 22, "credits_remaining": 21.8271626847,
+            "current_period_end": "2026-11-18T01:58:10.000Z", "rollover_credits": 0,
+        }}),
+        usage_status=200,
+    )
+    (w,) = get_provider("nous-portal").to_rows(raw)
+    assert (w.label, w.pct_used, w.used, w.limit, w.unit) == ("30d", 1, 0.17, 22.0, "$")
+    assert w.reset_at == "2026-11-18T01:58:10Z"
+
+
+def test_nous_portal_login_and_refresh(monkeypatch, tmp_path, capsys):
+    """Device login saves our own 0600 pair; an expiring token is refreshed once with the
+    old refresh token and the rotated pair persisted; a dead grant drops the file so the
+    cookie path takes over again."""
+    from types import SimpleNamespace
+    from tokenmaxxr.providers import nous_portal
+    from tokenmaxxr.providers.base import NoAuth
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    monkeypatch.setattr(nous_portal.time, "sleep", lambda s: None)
+    replies = [
+        (200, {"device_code": "DEVSECRET", "user_code": "ABCD-EFGH", "expires_in": 600, "interval": 5,
+               "verification_uri_complete": "https://portal.nousresearch.com/x?user_code=ABCD-EFGH"}),
+        (400, {"error": "authorization_pending"}),
+        (200, {"access_token": "A1", "refresh_token": "R1", "expires_in": 899}),
+        (200, {"access_token": "A2", "refresh_token": "R2", "expires_in": 899}),
+        (400, {"error": "refresh_token_reused"}),
+    ]
+    calls = []
+
+    def post(url, headers=None, data=None, timeout=None):
+        calls.append(headers)
+        status, body = replies.pop(0)
+        return SimpleNamespace(status_code=status, json=lambda: body, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(nous_portal, "_api_session", lambda: SimpleNamespace(post=post, headers={}))
+    p = get_provider("nous-portal")
+    assert p.cookie_domain == "portal.nousresearch.com"
+
+    nous_portal.login()
+    out = capsys.readouterr().out
+    assert "ABCD-EFGH" in out and "DEVSECRET" not in out
+    path = nous_portal.auth_path()
+    assert p.cookie_domain is None and path.stat().st_mode & 0o777 == 0o600
+    assert nous_portal._access_token() == "A1" and len(calls) == 3  # still fresh: no refresh
+
+    expired = {**json.loads(path.read_text()), "expires_at": 0}
+    path.write_text(json.dumps(expired))
+    assert nous_portal._access_token() == "A2"
+    assert calls[-1] == {"x-nous-refresh-token": "R1"}
+    assert json.loads(path.read_text())["refresh_token"] == "R2"
+
+    path.write_text(json.dumps(expired))
+    with pytest.raises(NoAuth):
+        nous_portal._access_token()
+    assert p.cookie_domain == "portal.nousresearch.com"

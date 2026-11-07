@@ -1,8 +1,8 @@
 # tokenmaxxr
 
-Aggregate AI subscription quota usage (Claude, AWS Kiro, ClinePass, Command Code, Ollama Cloud, OpenCode Go) into one view.
+Aggregate AI subscription quota usage (Claude, AWS Kiro, ClinePass, Command Code, Nous Portal, Ollama Cloud, OpenCode Go) into one view.
 
-Six providers, one engine, one versioned JSON contract. CLI for bars/dashboards, a DankMaterialShell bar plugin, optional WebUI, optional HTTP API.
+Seven providers, one engine, one versioned JSON contract. CLI for bars/dashboards, a DankMaterialShell bar plugin, optional WebUI, optional HTTP API.
 
 ## Install
 
@@ -24,6 +24,7 @@ tokenmaxxr --json       # machine-readable schema:1
 tokenmaxxr --refresh    # bypass the 300s cache
 tokenmaxxr doctor       # live-check auth + fetch per provider (exit 1 on failure)
 tokenmaxxr serve        # WebUI + HTTP API
+tokenmaxxr login nous-portal   # one-time Nous Portal login (see Auth sources)
 ```
 
 ## Web UI
@@ -84,6 +85,7 @@ Two kinds of provider:
 | AWS Kiro | `kiro` | kiro-cli token in `~/.local/share/kiro-cli/data.sqlite3`, else Kiro IDE `~/.aws/sso/cache/kiro-auth-token.json`. Log in with `kiro-cli login`. |
 | ClinePass | `clinepass` | browser cookies for `app.cline.bot` + `api.cline.bot` |
 | Command Code | `commandcode` | browser cookies for `commandcode.ai` (session cookie, sent to `api.commandcode.ai`) |
+| Nous Portal | `nous-portal` | Run `tokenmaxxr login nous-portal` once: it prints a link, you approve it in the browser, and tokenmaxxr keeps its own OAuth token in `~/.local/state/tokenmaxxr/nous-portal-auth.json`. The portal only accepts Hermes Agent's OAuth client, so the approval page calls it Hermes. Without a login (or after deleting that file) it falls back to browser cookies for `portal.nousresearch.com`, which last only about an hour after the portal was last open. API keys can't read the balance. |
 | Ollama Cloud | `ollama-cloud` | browser cookies for `ollama.com` |
 | OpenCode Go | `opencode-go` | browser cookies for `opencode.ai` |
 
@@ -91,6 +93,9 @@ Token providers never refresh tokens themselves (that could invalidate the
 CLI's own session). Kiro tokens expire hourly, so an expired one makes
 tokenmaxxr run `kiro-cli whoami`, which refreshes in place. An expired Claude
 token shows as `no-auth`; run `claude` once and the next poll succeeds.
+The Nous Portal login is the exception: no other app holds that token, so
+tokenmaxxr refreshes it itself. Nous refresh tokens work only once, so
+refreshes run under a file lock.
 
 ## Cookie sources
 

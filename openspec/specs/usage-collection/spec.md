@@ -81,13 +81,25 @@ The provider MUST recognize the 5-Hour, Weekly, and Monthly limits and map them 
 
 ### Requirement: Ollama Cloud provider
 
-The system SHALL scrape `https://ollama.com/settings` and parse usage windows from elements whose `aria-label` starts with "Session usage " or "Weekly usage ", reading the percentage from the aria-label text and the reset time from the sibling element's `data-time` attribute (ISO 8601).
+The system SHALL scrape `https://ollama.com/dashboard` with the browser cookies for `ollama.com`.
 
-The provider MUST map Session to label `5h` and Weekly to label `7d`.
+For legacy plans the provider SHALL parse usage windows from elements whose `aria-label` starts with "Session usage " or "Weekly usage ", reading the percentage from the aria-label text and the reset time from the nearest `data-time` attribute (ISO 8601) in the element's ancestors. The provider MUST map Session to label `5h` and Weekly to label `7d`.
+
+For credits plans (Pro / Max) the provider SHALL read the `#usage-credits-breakdown` element: the remaining balance from "Monthly credits $LEFT", and the cap and reset date from "Refills to $CAP on <Month D, YYYY>". It MUST return one window labeled `30d` with `unit` `$`, `limit` = CAP, `used` = CAP − LEFT, `pct_used` = used / CAP, and `reset_at` = that date at 00:00 UTC.
+
+The provider MUST fail with an error when the page has neither shape.
 
 #### Scenario: Two windows parsed
-- **WHEN** the settings page shows Session and Weekly usage
+- **WHEN** the page shows Session and Weekly usage
 - **THEN** the provider returns two windows labeled 5h and 7d with percentages and ISO reset timestamps
+
+#### Scenario: Credits plan parsed
+- **WHEN** the dashboard shows "Monthly credits $28.43" and "Refills to $60 on November 18, 2026."
+- **THEN** the provider returns one window labeled 30d with used 31.57, limit 60, unit `$`, pct_used 53 and reset_at `2026-11-18T00:00:00Z`
+
+#### Scenario: Layout changed
+- **WHEN** the page has no usage aria-labels and no credits breakdown
+- **THEN** the provider fails with an error, and other providers still return their data
 
 ### Requirement: Per-provider failure isolation
 

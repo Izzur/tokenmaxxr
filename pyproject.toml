@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tokenmaxxr"
-version = "1.2.0"
-description = "Aggregate AI subscription quota usage (Claude, Kiro, ClinePass, Command Code, Ollama Cloud, OpenCode Go) into one view."
+version = "1.3.0"
+description = "Aggregate AI subscription quota usage (Claude, Kiro, ClinePass, Command Code, Nous Portal, Ollama Cloud, OpenCode Go) into one view."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

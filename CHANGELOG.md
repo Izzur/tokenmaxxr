@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.3.0 — 2026-11-07
 
 ### Added
 - Nous Portal provider (`nous-portal`): reports subscription credits as a 30d

@@ -104,7 +104,7 @@ refreshes run under a file lock.
 3. Chromium-family via `browser_cookie3` (best-effort, locked keyring → skip)
 4. No match → `no-auth` status + remediation in `doctor`
 
-Cookies are copied to a temp file before reading (WAL lock-safe). Cache and history live under `~/.local/state/tokenmaxxr/`.
+Cookies are copied to a temp file before reading (WAL lock-safe). Cache and history live under `~/.local/state/tokenmaxxr/`. Once `history.jsonl` passes 1 MB it is compacted: lines older than 90 days and repeated values are dropped.
 
 ## DankMaterialShell (Dankbar)
 

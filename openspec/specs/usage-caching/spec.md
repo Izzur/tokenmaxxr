@@ -48,3 +48,11 @@ On every successful live fetch, the system SHALL append one JSON line per usage 
 - **WHEN** a live fetch fails (serving stale or error)
 - **THEN** no lines are appended to history.jsonl for that provider
 
+### Requirement: History compaction
+
+When history.jsonl grows past 1 MB after an append, the system SHALL rewrite it once. The rewrite MUST drop lines older than 90 days and lines whose `pct_used` equals the previous kept line of the same provider and window. It MUST keep the first line of each provider and window inside the 90 days, and every change after it. It MUST replace the file atomically, so a crash leaves either the old file or the new one. Lines that are not valid JSON MAY be dropped.
+
+#### Scenario: Repeats and old lines removed
+- **WHEN** history.jsonl passes 1 MB and holds a 5h window at 5%, 5%, 9%, 5% inside 90 days plus lines from 100 days ago
+- **THEN** after the next append the file holds 5%, 9%, 5% for that window and no lines from 100 days ago
+

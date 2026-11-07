@@ -72,3 +72,30 @@ def test_history_filter(isolated):
     history.append(_r(label="7d", pct=2))
     out = history.read_all(window="7d")
     assert len(out) == 1 and out[0]["window"] == "7d"
+
+
+def test_history_compact_drops_old_and_repeats(isolated):
+    """Keeps the first in-range line per provider/window, then only changes."""
+    lines = [
+        ("2026-07-01T00:00:00Z", "5h", 5),   # older than 90d: dropped
+        ("2026-10-01T00:00:00Z", "5h", 5),   # first in range: kept
+        ("2026-10-01T00:05:00Z", "5h", 5),   # repeat: dropped
+        ("2026-10-01T00:05:00Z", "7d", 5),   # other window: kept
+        ("2026-10-01T00:10:00Z", "5h", 9),   # change: kept
+        ("2026-10-01T00:15:00Z", "5h", 5),   # change back: kept
+    ]
+    path = cache.history_path()
+    path.write_text(
+        "".join(json.dumps({"ts": t, "provider": "opencode-go", "window": w, "pct_used": p}) + "\n"
+                for t, w, p in lines) + "not json\n"
+    )
+    history.compact(now=datetime(2026, 11, 7, tzinfo=timezone.utc))
+    got = [(r["ts"], r["window"], r["pct_used"]) for r in history.read_all()]
+    assert got == [lines[1], lines[3], lines[4], lines[5]]
+
+
+def test_history_append_compacts_past_max_bytes(isolated, monkeypatch):
+    monkeypatch.setattr(history, "MAX_BYTES", 0)
+    for _ in range(3):
+        history.append(_r(pct=7))
+    assert len(history.read_all()) == 1

@@ -22,6 +22,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 - DMS widget: pace marker. Each popout bar shows a tick at the share of the
   window already past. A window more than 10 points ahead of it is marked
   "over pace" and turns warning color, as does the bar icon.
+- `history.jsonl` compaction: once the file passes 1 MB, tokenmaxxr rewrites
+  it without lines older than 90 days and without repeated values (same %
+  for the same provider and window). About 90% of lines were repeats.
 
 ### Changed
 - DMS plugin shows as `Tokenmaxxr` in the plugin list, popout header and

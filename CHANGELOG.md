@@ -19,6 +19,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   after the portal was last open. tokenmaxxr never sends the rotating
   `nas-refresh` cookie, so a cold browser session shows `no-auth` instead of
   signing the browser out.
+- DMS widget: pace marker. Each popout bar shows a tick at the share of the
+  window already past. A window more than 10 points ahead of it is marked
+  "over pace" and turns warning color, as does the bar icon.
 
 ### Changed
 - DMS plugin shows as `Tokenmaxxr` in the plugin list, popout header and

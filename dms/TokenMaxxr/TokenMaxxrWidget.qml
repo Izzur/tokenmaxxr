@@ -13,8 +13,10 @@ import qs.Modules.Plugins
 //   hottest: "<tag> <pct>%" — the most-used window across all providers.
 //   cycle:   rotates "<tag> <pct>%" through providers (each one's hottest).
 // Icon turns warning/error color when any window crosses warn/crit, and
-// notify-send fires once per window per level crossed.
-// Popout: every provider, every window, progress bar, reset time, $ amounts.
+// notify-send fires once per window per level crossed. Below warn, the icon
+// turns warning color when a window is "over pace": used % is more than 10
+// points ahead of the % of the window already past.
+// Popout: every provider, every window, progress bar with a pace tick, reset time, $ amounts.
 // Left click: popout. Right click: --refresh.
 // Settings (edit ~/.config/DankMaterialShell/plugin_settings.json → "tokenMaxxr"):
 //   "command":      shell command emitting schema:1 JSON  (default: tokenmaxxr --json)
@@ -107,6 +109,26 @@ PluginComponent {
         return m ? parseInt(m[1]) * (m[2] === "d" ? 24 : 1) : 0;
     }
 
+    // % of the window already past, from its label length and reset time; -1 = unknown.
+    function elapsedPct(w) {
+        void tick;
+        const hours = windowHours(w.label), t = new Date(w.reset_at || "").getTime();
+        if (!hours || isNaN(t)) return -1;
+        return Math.max(0, Math.min(100, 100 - (t - Date.now()) / 36000 / hours));
+    }
+
+    // Used more than 10 points ahead of the time passed: on track to run out before reset.
+    function overPace(w) {
+        const e = elapsedPct(w);
+        return e >= 0 && w.pct_used > e + 10;
+    }
+
+    function windowColor(w) {
+        return level(w.pct_used) > 0 ? pctColor(w.pct_used) : overPace(w) ? Theme.warning : Theme.primary;
+    }
+
+    readonly property bool anyOverPace: liveProviders.some(p => (p.windows || []).some(w => overPace(w)))
+
     // Per provider: its longest window. Across providers: the one resetting soonest.
     readonly property var soonest: {
         void tick;  // re-evaluate every minute so the countdown moves
@@ -141,6 +163,7 @@ PluginComponent {
 
     readonly property color iconColor: lastError ? Theme.error
         : hottest && level(hottest.window.pct_used) > 0 ? pctColor(hottest.window.pct_used)
+        : anyOverPace ? Theme.warning
         : Theme.surfaceText
 
     // Highest level already notified per "provider/window"; drops back when
@@ -315,7 +338,7 @@ PluginComponent {
                                         width: 64
                                     }
                                     StyledText {
-                                        text: root.resetText(modelData.reset_at)
+                                        text: root.resetText(modelData.reset_at) + (root.overPace(modelData) ? " · over pace" : "")
                                         font.pixelSize: Theme.fontSizeSmall
                                         color: Theme.surfaceVariantText
                                         width: parent.width - 64 - pctLabel.width
@@ -326,7 +349,7 @@ PluginComponent {
                                         text: (root.amountText(modelData) ? root.amountText(modelData) + "  " : "") + modelData.pct_used + "%"
                                         font.pixelSize: Theme.fontSizeSmall
                                         font.weight: Font.Medium
-                                        color: root.pctColor(modelData.pct_used)
+                                        color: root.windowColor(modelData)
                                     }
                                 }
 
@@ -339,7 +362,17 @@ PluginComponent {
                                         width: parent.width * Math.min(100, modelData.pct_used) / 100
                                         height: parent.height
                                         radius: parent.radius
-                                        color: root.pctColor(modelData.pct_used)
+                                        color: root.windowColor(modelData)
+                                    }
+                                    // Pace tick: where usage would be if spent evenly over the window.
+                                    Rectangle {
+                                        readonly property real elapsed: root.elapsedPct(modelData)
+                                        visible: elapsed >= 0
+                                        x: parent.width * elapsed / 100 - width / 2
+                                        y: -2
+                                        width: 2
+                                        height: parent.height + 4
+                                        color: Theme.surfaceText
                                     }
                                 }
                             }

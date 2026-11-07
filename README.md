@@ -129,6 +129,13 @@ The icon turns warning/error color once any window reaches `warn` / `crit`,
 and `notify-send` fires once per window each time it crosses a threshold
 (again after the window resets).
 
+Pace: each popout bar has a tick at the share of the window already past
+(from the label length and the reset time). A window is "over pace" when its
+used % is more than 10 points past that tick, so it will run out before the
+reset at this rate. Over-pace windows show "over pace" and turn warning color,
+and so does the icon, even below `warn`. Windows without a length in the
+label (e.g. `weekly`) or without a reset time get no tick.
+
 Optional settings in `~/.config/DankMaterialShell/plugin_settings.json`
 (DMS reads this file at startup; run `dms restart` after editing):
 

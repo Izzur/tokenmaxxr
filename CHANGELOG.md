@@ -20,6 +20,10 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   `nas-refresh` cookie, so a cold browser session shows `no-auth` instead of
   signing the browser out.
 
+### Changed
+- DMS plugin shows as `Tokenmaxxr` in the plugin list, popout header and
+  notifications.
+
 ### Fixed
 - Ollama Cloud: the credits meter moved from `/settings` to `/dashboard`.
   tokenmaxxr now reads the credits breakdown there (used = $cap − monthly

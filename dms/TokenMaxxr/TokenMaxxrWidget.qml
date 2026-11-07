@@ -125,7 +125,7 @@ PluginComponent {
     }
 
     readonly property string pillText: {
-        if (!doc) return loading ? "…" : "tokenmaxxr";
+        if (!doc) return loading ? "…" : "Tokenmaxxr";
         if (pillMode === "hottest") {
             return hottest ? tag(hottest.provider) + " " + hottest.window.pct_used + "%" : "no-auth";
         }
@@ -162,7 +162,7 @@ PluginComponent {
                 next[key] = lvl;
                 if (notifyEnabled && notifier && lvl > (notified[key] || 0)) {
                     const amt = amountText(w);
-                    Quickshell.execDetached(["notify-send", "-a", "tokenmaxxr",
+                    Quickshell.execDetached(["notify-send", "-a", "Tokenmaxxr",
                         "-u", lvl === 2 ? "critical" : "normal",
                         p.name + " " + w.label + " at " + w.pct_used + "%",
                         (amt ? amt + ", " : "") + (resetText(w.reset_at) || "no reset time")]);
@@ -247,7 +247,7 @@ PluginComponent {
 
     popoutContent: Component {
         PopoutComponent {
-            headerText: "tokenmaxxr"
+            headerText: "Tokenmaxxr"
             detailsText: root.lastError ? root.lastError
                        : root.doc ? "fetched " + new Date(root.doc.fetched_at).toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
                        : "loading…"
